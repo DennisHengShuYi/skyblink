@@ -123,3 +123,13 @@ def test_per_ip_build_limit(client, monkeypatch):
     # a forged first X-Forwarded-For hop does not reset the limit
     h = {"x-forwarded-for": "1.2.3.4, testclient"}
     assert client.post("/api/build", json={"ra": 52, "dec": 0}, headers=h).status_code == 429
+
+
+def test_view_lists_sibling_detectors(client, tmp_path):
+    import shutil
+    from skyblink import storage
+    src = storage.find_view(KEY)
+    other = storage.view_dir("abcdef012345-D2", tmp_path / "cache")
+    for f in src.iterdir():
+        shutil.copy2(f, other / f.name)
+    assert client.get(f"/api/view/{KEY}").json()["siblings"] == {"D2": "abcdef012345-D2"}

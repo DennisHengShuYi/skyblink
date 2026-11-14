@@ -1,0 +1,57 @@
+[
+  {
+    "slug": "wise0855",
+    "name": "WISE 0855−0714",
+    "ra": 133.75991,
+    "dec": -7.24225,
+    "fov": 0.1,
+    "det": "D6",
+    "caption": "The coldest known brown dwarf, 7.4 light-years away. Too cold to see in visible light, it shines at 4–5 µm (D6). It crawls ~8″ a year — watch the faint dot at the crosshair shift right (west) between May 2025 and April 2026, or try Difference.",
+    "kind": "motion",
+    "key": "e01445dc3f16-D6"
+  },
+  {
+    "slug": "barnard",
+    "name": "Barnard's Star",
+    "ra": 269.44629,
+    "dec": 4.76792,
+    "fov": 0.1,
+    "det": "D2",
+    "caption": "The fastest-moving star in our sky: 10.4″ a year northward. It is so bright SPHEREx saturates (amber in the flags overlay), but the bright core still steps up between surveys — Difference shows a blue/red pair.",
+    "kind": "motion",
+    "key": "768d33c99b4c-D2"
+  },
+  {
+    "slug": "epsindib",
+    "name": "Epsilon Indi B",
+    "ra": 331.09592,
+    "dec": -56.80094,
+    "fov": 0.1,
+    "det": "D6",
+    "caption": "A pair of brown dwarfs orbiting the star Epsilon Indi (just outside this frame), 12 light-years away, moving 4.7″ a year to the south-east. Compare D2 and D6: brown dwarfs are far redder than normal stars.",
+    "kind": "motion",
+    "key": "85387de0fcfc-D6"
+  },
+  {
+    "slug": "rwaur",
+    "name": "RW Aurigae",
+    "ra": 76.95608,
+    "dec": 30.4012,
+    "fov": 0.1,
+    "det": "D3",
+    "caption": "A young star still wrapped in its planet-forming disk, with deep, irregular dimming events. It doesn't move — watch its brightness change between surveys, and click it for a spectrum.",
+    "kind": "variable",
+    "key": "e5f4784477c4-D3"
+  },
+  {
+    "slug": "rdra",
+    "name": "R Draconis",
+    "ra": 248.16738,
+    "dec": 66.75501,
+    "fov": 0.1,
+    "det": "D3",
+    "caption": "A pulsating red giant (Mira variable) with a ~246-day cycle. SPHEREx catches it at different phases each survey; click it to see water absorption in its infrared spectrum.",
+    "kind": "variable",
+    "key": "17e794349944-D3"
+  }
+]

@@ -138,3 +138,29 @@ def test_encode_cube_layout_is_north_up_float16():
     assert first[0, 0] == 6.0  # FITS row 2 (north-most) becomes row 0
     assert np.isnan(raw[9:18]).all()
     assert raw[-1] == 7.0
+
+
+def test_fill_saturated_core_uses_neighbour_max():
+    from skyblink.imaging import fill_saturated
+    img = np.array([[1.0, 2.0, 1.0],
+                    [3.0, np.nan, 9.0],
+                    [1.0, 4.0, 1.0]])
+    core = ~np.isfinite(img)
+    out = fill_saturated(img, core)
+    assert out[1, 1] == 9.0
+    assert np.isnan(img[1, 1])  # input untouched
+
+
+def test_source_pixels_survive_bad_bits(tmp_path):
+    """A star's wings flagged TRANSIENT+SOURCE must stay visible after cleaning."""
+    from skyblink.imaging import clean_frame
+    img = np.array([[0.0, 500.0], [np.nan, 0.0]])
+    zodi = np.zeros_like(img)
+    var = np.ones_like(img)
+    source, transient = 1 << 21, 1 << 0
+    flags = np.array([[transient, transient | source], [source, 0]])
+    clean, v, filled = clean_frame(img, zodi, var, flags)
+    assert np.isnan(clean[0, 0])           # bad and not a star: blanked
+    assert clean[0, 1] > 100               # star wing kept
+    assert filled[1, 0] and np.isfinite(clean[1, 0])  # saturated core filled
+    assert v[1, 0] > 100 * np.nanmedian(var)  # ...with tiny stacking weight

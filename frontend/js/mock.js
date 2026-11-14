@@ -63,7 +63,8 @@ export async function featured() {
 const LIVE_FOVS = [0.05, 0.1];
 const INLINE_BUILD_MS = 3000;
 const featuredKeys = new Set();
-const pollMode = () => new URLSearchParams(location.search).get('mockpoll') === '1';
+// Read once at load: writeUrlState() later rewrites the query string without it.
+const POLL_MODE = new URLSearchParams(location.search).get('mockpoll') === '1';
 
 function httpError(message, status) {
   const err = new Error(message);
@@ -94,7 +95,7 @@ export async function startBuild({ ra, dec, fov, det }) {
     return { key, status: 'done' };
   }
   if (!LIVE_FOVS.includes(fov)) throw httpError('Live builds support 0.05° and 0.1° fields only. Larger fields are available for featured targets.', 400);
-  if (pollMode()) {
+  if (POLL_MODE) {
     if (!builds.has(key)) builds.set(key, Date.now());
     return { key, status: 'queued' };
   }

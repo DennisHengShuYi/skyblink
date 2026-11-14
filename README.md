@@ -67,13 +67,25 @@ python -m pytest            # from backend/
 
 To try the frontend without a backend, run `python frontend/mock/serve.py 8000` and open `http://127.0.0.1:8000/?mock=1`.
 
-## Deploy
+## Deploy (Vercel)
+
+The repo deploys to Vercel on every push to `main`. `vercel.json` holds all the settings:
+
+- **Static site.** `public/`, which `scripts/export_static.py` generates, holds the web page and the pre-built featured views. Rewrites map `/api/view`, `/api/png` and `/api/featured` onto those files.
+- **One Python function.** `api/index.py` serves `skyblink.serverless`. A new position is built inside a single request (about 60–120 s, up to 40 images, fov 0.05° or 0.1°) and returned inline, because serverless functions have no background jobs and no disk that persists between requests.
+- **Browser-side analysis.** Difference images and spectra are computed in the browser from each view's float16 data cube.
+
+To update the featured targets or add a new data release:
 
 ```bash
-docker build -t skyblink . && docker run -p 7860:7860 skyblink
+python scripts/build_featured.py   # rebuilds featured/ from IRSA
+python scripts/export_static.py    # refreshes public/ and backend/skyblink/static_keys.json
+git add featured public backend/skyblink/static_keys.json && git commit -m "data: refresh featured" && git push
 ```
 
-The repo is ready to use as a Hugging Face Space (Docker SDK). The front matter at the top of this file is its config.
+No secrets are needed, since every data service is public. Optional settings are listed in `.env.example`.
+
+The `Dockerfile` runs the same app as a long-lived server, with background builds and every field-of-view size, for any container host.
 
 ## Data and credits
 

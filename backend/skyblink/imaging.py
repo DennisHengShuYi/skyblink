@@ -89,6 +89,47 @@ def masked_bilinear(arr: np.ndarray, sx: np.ndarray, sy: np.ndarray) -> np.ndarr
         return np.where(den > 0.5, num / den, np.nan)
 
 
+SOURCE_BIT = 21
+SATURATED_VAR_FACTOR = 1e4  # filled saturated cores barely count in stacks
+FILL_PASSES = 8  # grows up to 8 px (49") into a saturated core
+
+
+def fill_saturated(img: np.ndarray, core: np.ndarray) -> np.ndarray:
+    """Fill NaN saturated-star cores with the brightest finite neighbour (grows inward)."""
+    out = img.copy()
+    todo = core & ~np.isfinite(out)
+    for _ in range(FILL_PASSES):
+        if not todo.any():
+            break
+        padded = np.pad(np.where(np.isfinite(out), out, -np.inf), 1, constant_values=-np.inf)
+        h, w = out.shape
+        neigh = np.max([padded[dy:dy + h, dx:dx + w] for dy in range(3) for dx in range(3)], axis=0)
+        fill = todo & np.isfinite(neigh)
+        out[fill] = neigh[fill]
+        todo &= ~fill
+    return out
+
+
+def clean_frame(img, zodi, var, flags):
+    """Subtract zodiacal light, blank unusable pixels, keep stars, fill saturated cores.
+
+    Returns (clean image, variance, filled-core mask). Pixels SPHEREx marks as part of a
+    source (SOURCE bit) are never blanked: bright stars carry TRANSIENT/SUR_ERROR flags on
+    their valid wings, and blanking them erased saturated stars like Barnard's Star.
+    """
+    source = ((flags >> SOURCE_BIT) & 1).astype(bool)
+    bad = ((flags & BAD_MASK) != 0) & ~source
+    clean = np.where(bad, np.nan, img - zodi)
+    core = source & ~np.isfinite(clean)
+    clean = fill_saturated(clean, core)
+    filled = core & np.isfinite(clean)
+    var = np.where(bad | ~(var > 0), np.nan, var)
+    typical = np.nanmedian(var) if np.isfinite(var).any() else 1.0
+    var = np.where(filled, typical * SATURATED_VAR_FACTOR, var)
+    clean = clean - np.nanmedian(clean[~source]) if (~source).any() else clean  # sky level
+    return clean, var, filled
+
+
 def process_cutout(data: bytes, target: WCS, npix: int) -> dict:
     """Clean one SPHEREx cutout and reproject it onto the target grid (FITS orientation)."""
     with fits.open(io.BytesIO(data)) as hdul:
@@ -104,11 +145,7 @@ def process_cutout(data: bytes, target: WCS, npix: int) -> dict:
         wave_wcs = WCS(header, fobj=hdul, key="W")
         um, bw = (np.asarray(a).reshape(npix, npix) for a in wave_wcs.pixel_to_world_values(sx, sy))
 
-    clean = img - zodi
-    bad = (flags & BAD_MASK) != 0
-    clean[bad] = np.nan
-    var = np.where(bad | (var <= 0), np.nan, var)
-    clean -= np.nanmedian(clean)  # local background for small fields
+    clean, var, _ = clean_frame(img, zodi, var, flags)
 
     shape = (npix, npix)
     img_r = masked_bilinear(clean, sx, sy).reshape(shape)

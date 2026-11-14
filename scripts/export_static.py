@@ -16,8 +16,13 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 FEATURED = ROOT / "featured"
 PUBLIC = ROOT / "public"
-STATIC_FILES = ("manifest.json", "cube.bin", "deep.png")
-STATIC_PREFIXES = ("visit_", "flags_", "stack_")
+
+
+def _referenced_files(manifest: dict) -> set[str]:
+    urls = [manifest["deep"]["png"], manifest["cube"]["url"]]
+    urls += [s["png"] for s in manifest["stacks"]]
+    urls += [u for v in manifest["visits"] for u in (v["png"], v["flags_png"])]
+    return {u.rsplit("/", 1)[-1] for u in urls if u}
 
 
 def main() -> None:
@@ -39,10 +44,9 @@ def main() -> None:
             key = f"{pos}-{det}"
             dst = data / key
             dst.mkdir()
-            for f in src.iterdir():
-                if f.name in STATIC_FILES or f.name.startswith(STATIC_PREFIXES):
-                    shutil.copy2(f, dst / f.name)
             m = json.loads((src / "manifest.json").read_text(encoding="utf-8"))
+            for name in _referenced_files(m):  # only what this build references, no stale files
+                shutil.copy2(src / name, dst / name)
             m["siblings"] = {d: k for d, k in siblings.items() if d != det}
             (dst / "manifest.json").write_text(json.dumps(m), encoding="utf-8")
             keys.append(key)

@@ -81,7 +81,9 @@ def view(key: str) -> dict:
     m = storage.load_manifest(key)
     if not m:
         raise HTTPException(404, "View not built yet")
-    return m
+    pos = key.split("-")[0]
+    siblings = {d.name: f"{pos}-{d.name}" for d in storage.sibling_views(key) if d.name != m["det"]}
+    return {**m, "siblings": siblings}
 
 
 @app.get("/api/png/{key}/{name}")

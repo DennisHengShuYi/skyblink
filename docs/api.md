@@ -56,3 +56,11 @@ frameRef is `s<window>` (stack), `v<i>` (visit) or `deep`. Returns PNG of b − 
 Pixel spectrum at grid pixel (row 0 = north) across every visit in every detector built for this position:
 `{"x":..,"y":..,"ra":..,"dec":..,"points":[{"um":1.23,"flux":0.12,"err":0.01,"mjd":60800.7,"det":"D2","window":0}]}`
 Only detectors already built for this ra/dec/fov contribute.
+
+## Changes for serverless hosting (current)
+
+- **Difference and spectra are computed in the browser** from the view's float cube. `/api/diff` and `/api/spectrum` remain on the local server only.
+- `cube`: `{"url": "/api/png/<key>/cube.bin" | null, "b64": null | "<base64>", "dtype": "float16", "npix": P, "n_visits": N, "n_stacks": W, "layout": ["img","var","um","stack","deep"], "row0": "north"}`. Little-endian float16 planes of P×P: img[N], var[N], um[N] (µm), stack[W], deep[1]. Row 0 is north, NaN means masked. `visits[k].i == k`, and stack planes follow `stacks`.
+- `siblings`: `{"D1": "<key>", ...}`, the other detectors pre-built at the same ra/dec/fov (featured views only). Every detector at one position shares the same grid.
+- `GET /api/config` returns `{"live_fovs": [...], "mode": "vercel"|"server"}`.
+- `POST /api/build` on Vercel either returns `{"key", "status": "done"}` for a pre-built view, or builds synchronously (60–150 s) and returns `{"key", "status": "done", "view": <manifest>}` with `data:` PNG URIs and `cube.b64`. Live builds allow fov 0.05 or 0.1 and use at most 40 images. Errors are JSON `{"detail": "..."}`: 400 for an unsupported fov, 404 for no data, 429 for rate limits, 503 when the archive fails.

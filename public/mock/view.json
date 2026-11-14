@@ -1,0 +1,500 @@
+{
+ "key": "mock0000",
+ "ra": 133.79513,
+ "dec": -7.24515,
+ "fov": 0.1,
+ "det": "D6",
+ "grid": {
+  "npix": 59,
+  "scale_arcsec": 6.15,
+  "ctype": "TAN",
+  "north_up": true,
+  "east_left": true
+ },
+ "band": {
+  "det": "D6",
+  "um_min": 4.42,
+  "um_max": 5.0
+ },
+ "stretch": {
+  "kind": "asinh",
+  "lo": 0.01,
+  "hi": 2.3,
+  "unit": "MJy/sr"
+ },
+ "windows": [
+  {
+   "id": 0,
+   "label": "2025-05",
+   "mjd_start": 60800.7,
+   "mjd_end": 60801.1,
+   "n": 4
+  },
+  {
+   "id": 1,
+   "label": "2025-11",
+   "mjd_start": 60985.2,
+   "mjd_end": 60985.6,
+   "n": 4
+  },
+  {
+   "id": 2,
+   "label": "2026-05",
+   "mjd_start": 61166.4,
+   "mjd_end": 61166.8,
+   "n": 4
+  },
+  {
+   "id": 3,
+   "label": "2026-10",
+   "mjd_start": 61330.9,
+   "mjd_end": 61331.3,
+   "n": 4
+  }
+ ],
+ "stacks": [
+  {
+   "window": 0,
+   "png": "mock/png/stack_0.png",
+   "mjd": 60800.87,
+   "date": "2025-05-06",
+   "n": 4,
+   "um_mean": 4.68
+  },
+  {
+   "window": 1,
+   "png": "mock/png/stack_1.png",
+   "mjd": 60985.37,
+   "date": "2025-11-06",
+   "n": 4,
+   "um_mean": 4.68
+  },
+  {
+   "window": 2,
+   "png": "mock/png/stack_2.png",
+   "mjd": 61166.57,
+   "date": "2026-05-06",
+   "n": 4,
+   "um_mean": 4.68
+  },
+  {
+   "window": 3,
+   "png": "mock/png/stack_3.png",
+   "mjd": 61331.07,
+   "date": "2026-10-06",
+   "n": 4,
+   "um_mean": 4.68
+  }
+ ],
+ "deep": {
+  "png": "mock/png/deep.png",
+  "n": 16
+ },
+ "visits": [
+  {
+   "i": 0,
+   "obs_id": "2025W19_1B_0116_1",
+   "window": 0,
+   "mjd": 60800.7,
+   "date": "2025-05-05T16:49:00",
+   "um": 4.6,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_0.png",
+   "flags_png": "mock/png/flags_0.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_0.fits",
+   "collection": "spherex_qr2",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 1,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 1,
+   "obs_id": "2025W19_1B_0117_1",
+   "window": 0,
+   "mjd": 60800.81,
+   "date": "2025-05-06T17:49:00",
+   "um": 4.65,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_1.png",
+   "flags_png": "mock/png/flags_1.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_1.fits",
+   "collection": "spherex_qr2",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 2,
+   "obs_id": "2025W19_1B_0118_1",
+   "window": 0,
+   "mjd": 60800.92,
+   "date": "2025-05-07T18:49:00",
+   "um": 4.7,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_2.png",
+   "flags_png": "mock/png/flags_2.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_2.fits",
+   "collection": "spherex_qr2",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 3,
+   "obs_id": "2025W19_1B_0119_1",
+   "window": 0,
+   "mjd": 60801.03,
+   "date": "2025-05-08T19:49:00",
+   "um": 4.75,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_3.png",
+   "flags_png": "mock/png/flags_3.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_3.fits",
+   "collection": "spherex_qr2",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 4,
+   "obs_id": "2025W45_1B_0116_1",
+   "window": 1,
+   "mjd": 60985.2,
+   "date": "2025-11-05T16:49:00",
+   "um": 4.6,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_4.png",
+   "flags_png": "mock/png/flags_4.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_4.fits",
+   "collection": "spherex_qr2",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 1,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 5,
+   "obs_id": "2025W45_1B_0117_1",
+   "window": 1,
+   "mjd": 60985.31,
+   "date": "2025-11-06T17:49:00",
+   "um": 4.65,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_5.png",
+   "flags_png": "mock/png/flags_5.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_5.fits",
+   "collection": "spherex_qr2",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 6,
+   "obs_id": "2025W45_1B_0118_1",
+   "window": 1,
+   "mjd": 60985.42,
+   "date": "2025-11-07T18:49:00",
+   "um": 4.7,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_6.png",
+   "flags_png": "mock/png/flags_6.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_6.fits",
+   "collection": "spherex_qr2",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 7,
+   "obs_id": "2025W45_1B_0119_1",
+   "window": 1,
+   "mjd": 60985.53,
+   "date": "2025-11-08T19:49:00",
+   "um": 4.75,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_7.png",
+   "flags_png": "mock/png/flags_7.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_7.fits",
+   "collection": "spherex_qr2",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 8,
+   "obs_id": "2025W71_1B_0116_1",
+   "window": 2,
+   "mjd": 61166.4,
+   "date": "2026-05-05T16:49:00",
+   "um": 4.6,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_8.png",
+   "flags_png": "mock/png/flags_8.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_8.fits",
+   "collection": "spherex_qr3",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 1,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 9,
+   "obs_id": "2025W71_1B_0117_1",
+   "window": 2,
+   "mjd": 61166.51,
+   "date": "2026-05-06T17:49:00",
+   "um": 4.65,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_9.png",
+   "flags_png": "mock/png/flags_9.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_9.fits",
+   "collection": "spherex_qr3",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 10,
+   "obs_id": "2025W71_1B_0118_1",
+   "window": 2,
+   "mjd": 61166.62,
+   "date": "2026-05-07T18:49:00",
+   "um": 4.7,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_10.png",
+   "flags_png": "mock/png/flags_10.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_10.fits",
+   "collection": "spherex_qr3",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 11,
+   "obs_id": "2025W71_1B_0119_1",
+   "window": 2,
+   "mjd": 61166.73,
+   "date": "2026-05-08T19:49:00",
+   "um": 4.75,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_11.png",
+   "flags_png": "mock/png/flags_11.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_11.fits",
+   "collection": "spherex_qr3",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 12,
+   "obs_id": "2025W97_1B_0116_1",
+   "window": 3,
+   "mjd": 61330.9,
+   "date": "2026-10-05T16:49:00",
+   "um": 4.6,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_12.png",
+   "flags_png": "mock/png/flags_12.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_12.fits",
+   "collection": "spherex_qr3",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 1,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 13,
+   "obs_id": "2025W97_1B_0117_1",
+   "window": 3,
+   "mjd": 61331.01,
+   "date": "2026-10-06T17:49:00",
+   "um": 4.65,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_13.png",
+   "flags_png": "mock/png/flags_13.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_13.fits",
+   "collection": "spherex_qr3",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 14,
+   "obs_id": "2025W97_1B_0118_1",
+   "window": 3,
+   "mjd": 61331.12,
+   "date": "2026-10-07T18:49:00",
+   "um": 4.7,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_14.png",
+   "flags_png": "mock/png/flags_14.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_14.fits",
+   "collection": "spherex_qr3",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  },
+  {
+   "i": 15,
+   "obs_id": "2025W97_1B_0119_1",
+   "window": 3,
+   "mjd": 61331.23,
+   "date": "2026-10-08T19:49:00",
+   "um": 4.75,
+   "um_bw": 0.037,
+   "png": "mock/png/visit_15.png",
+   "flags_png": "mock/png/flags_15.png",
+   "file": "https://irsa.ipac.caltech.edu/mock/level2_15.fits",
+   "collection": "spherex_qr3",
+   "flag_frac": 0.03,
+   "flag_counts": {
+    "SOURCE": 25,
+    "NONLINEAR": 0,
+    "TRANSIENT": 3
+   }
+  }
+ ],
+ "stars": [
+  {
+   "source_id": "5765500000000000000",
+   "ra": 133.7711522,
+   "dec": -7.2408872,
+   "pmra": 11.26,
+   "pmdec": 14.11,
+   "gmag": 11.66
+  },
+  {
+   "source_id": "5765500000000000001",
+   "ra": 133.7541329,
+   "dec": -7.2678619,
+   "pmra": -4.74,
+   "pmdec": -0.25,
+   "gmag": 14.15
+  },
+  {
+   "source_id": "5765500000000000002",
+   "ra": 133.8051721,
+   "dec": -7.2817278,
+   "pmra": 0.99,
+   "pmdec": 16.91,
+   "gmag": 14.1
+  },
+  {
+   "source_id": "5765500000000000003",
+   "ra": 133.8172854,
+   "dec": -7.2505728,
+   "pmra": -14.38,
+   "pmdec": 13.18,
+   "gmag": 15.42
+  },
+  {
+   "source_id": "5765500000000000004",
+   "ra": 133.7724916,
+   "dec": -7.2338262,
+   "pmra": 18.34,
+   "pmdec": -2.32,
+   "gmag": 16.45
+  },
+  {
+   "source_id": "5765500000000000005",
+   "ra": 133.8200359,
+   "dec": -7.2432178,
+   "pmra": 5.48,
+   "pmdec": 6.19,
+   "gmag": 15.78
+  },
+  {
+   "source_id": "5765500000000000006",
+   "ra": 133.7736135,
+   "dec": -7.2851381,
+   "pmra": -7.68,
+   "pmdec": -12.21,
+   "gmag": 14.29
+  },
+  {
+   "source_id": "5765500000000000007",
+   "ra": 133.8204703,
+   "dec": -7.2150248,
+   "pmra": -12.6,
+   "pmdec": -12.37,
+   "gmag": 15.69
+  },
+  {
+   "source_id": "5765500000000000008",
+   "ra": 133.7995725,
+   "dec": -7.2738521,
+   "pmra": -17.57,
+   "pmdec": 8.15,
+   "gmag": 16.83
+  },
+  {
+   "source_id": "MOCK-HPM",
+   "ra": 133.8169355,
+   "dec": -7.2470194,
+   "pmra": -8100.0,
+   "pmdec": 700.0,
+   "gmag": 15.0
+  }
+ ],
+ "cube": {
+  "url": "mock/cube.bin",
+  "b64": null,
+  "dtype": "float16",
+  "npix": 59,
+  "n_visits": 16,
+  "n_stacks": 4,
+  "layout": [
+   "img",
+   "var",
+   "um",
+   "stack",
+   "deep"
+  ],
+  "row0": "north"
+ },
+ "notes": [
+  "Mock data: the bright star near the crosshair has a huge proper motion; the faint source at lower left varies in brightness."
+ ]
+}

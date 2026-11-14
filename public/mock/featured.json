@@ -1,0 +1,52 @@
+[
+ {
+  "slug": "barnard",
+  "name": "Barnard's Star",
+  "ra": 269.452076,
+  "dec": 4.693364,
+  "fov": 0.1,
+  "det": "D3",
+  "caption": "Fastest-moving star in our sky. It saturates: watch the bright core shift between windows.",
+  "kind": "motion"
+ },
+ {
+  "slug": "epsindib",
+  "name": "Epsilon Indi B",
+  "ra": 330.840226,
+  "dec": -56.79713,
+  "fov": 0.1,
+  "det": "D6",
+  "caption": "A brown-dwarf pair moving with its bright star, Epsilon Indi A.",
+  "kind": "motion"
+ },
+ {
+  "slug": "wise0855",
+  "name": "WISE 0855−0714",
+  "ra": 133.79513,
+  "dec": -7.24515,
+  "fov": 0.1,
+  "det": "D6",
+  "caption": "The coldest known brown dwarf. Moves about 1.3 px a year: watch the D6 stack.",
+  "kind": "motion"
+ },
+ {
+  "slug": "rwaur",
+  "name": "RW Aurigae",
+  "ra": 76.956319,
+  "dec": 30.401194,
+  "fov": 0.1,
+  "det": "D2",
+  "caption": "A young star that dims and brightens. Look for brightness change, not motion.",
+  "kind": "variable"
+ },
+ {
+  "slug": "rdra",
+  "name": "R Draconis",
+  "ra": 246.522817,
+  "dec": 66.75266,
+  "fov": 0.1,
+  "det": "D3",
+  "caption": "A pulsating red giant with a ~245-day cycle. Watch it brighten and fade.",
+  "kind": "variable"
+ }
+]
