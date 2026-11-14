@@ -80,7 +80,9 @@ def test_stretch_maps_into_uint8_range_and_nan_to_sky_level():
     out = to_uint8(data, params)
     assert out.dtype == np.uint8
     assert out[0, 0] == to_uint8(np.array([0.0]), params)[0]
-    assert out.max() == 255
+    flat = out.ravel()[1:]
+    assert np.all(np.diff(flat.astype(int)) >= 0)  # monotonic
+    assert flat[-1] > flat[0]
 
 
 def test_view_key_is_stable_and_rounds_coordinates():
@@ -164,3 +166,24 @@ def test_source_pixels_survive_bad_bits(tmp_path):
     assert clean[0, 1] > 100               # star wing kept
     assert filled[1, 0] and np.isfinite(clean[1, 0])  # saturated core filled
     assert v[1, 0] > 100 * np.nanmedian(var)  # ...with tiny stacking weight
+
+
+def test_stretch_puts_sky_near_black_and_faint_source_mid_grey():
+    rng = np.random.default_rng(1)
+    sky = rng.normal(0, 0.01, (60, 60))
+    sky[30, 30] = 0.15            # a 15-sigma faint source
+    sky[9:12, 9:12] = 50.0          # a bright star (several pixels, like real SPHEREx stars)
+    p = asinh_stretch_params([sky])
+    out = to_uint8(sky, p)
+    assert np.median(out) < 45     # dark background
+    assert 70 < out[30, 30] < 200  # faint source clearly visible
+    assert out[10, 10] == 255
+
+
+def test_stretch_keeps_bright_star_variability_visible():
+    a = np.zeros((20, 20)); a[5, 5] = 100.0
+    b = np.zeros((20, 20)); b[5, 5] = 50.0
+    rng = np.random.default_rng(2)
+    a += rng.normal(0, 0.01, a.shape); b += rng.normal(0, 0.01, b.shape)
+    p = asinh_stretch_params([a, b])
+    assert to_uint8(a, p)[5, 5] - to_uint8(b, p)[5, 5] >= 10  # halving flux is not clipped away

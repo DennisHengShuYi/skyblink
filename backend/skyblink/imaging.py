@@ -17,9 +17,10 @@ from .config import BAD_MASK, FLAG_BITS, PIXEL_SCALE_ARCSEC
 warnings.simplefilter("ignore", FITSFixedWarning)
 astropy_log.setLevel("WARNING")  # SPHEREx headers carry SIP without "-SIP"; astropy applies it correctly
 
-ASINH_SOFTNESS = 0.08
-STRETCH_LO_PCT = 1.0
-STRETCH_HI_PCT = 99.7
+STRETCH_HI_PCT = 99.95  # brightest pixels: keep bright-star variability unclipped
+SKY_LO_SIGMA = 2.0  # black point this many sigma below the sky
+MIN_RANGE_SIGMA = 50.0
+SOFT_SIGMA = 2.5  # asinh bend at this many sigma: faint sources bright, sky near black
 DIFF_FULL_SCALE_SIGMA = 12.0  # a 12-sigma change is full red/blue
 DIFF_NOISE_FLOOR_SIGMA = 2.5  # changes under this are dimmed so noise does not dominate
 
@@ -193,14 +194,34 @@ def weighted_stack(imgs: list[np.ndarray], variances: list[np.ndarray]) -> tuple
     return mean, var
 
 
-def asinh_stretch_params(arrays: list[np.ndarray]) -> dict:
-    vals = np.concatenate([a[np.isfinite(a)].ravel() for a in arrays]) if arrays else np.array([0.0])
+def robust_sigma(a: np.ndarray) -> float:
+    v = a[np.isfinite(a)]
+    if v.size == 0:
+        return 0.0
+    return float(1.4826 * np.median(np.abs(v - np.median(v))))
+
+
+def asinh_stretch_params(arrays: list[np.ndarray], noise_arrays: list[np.ndarray] | None = None) -> dict:
+    """One shared asinh stretch for a set of frames, adapted to the field's noise.
+
+    Empty sky (median) sits SKY_LO_SIGMA below the black point's top, so it renders near black;
+    the softness puts SOFT_SIGMA x noise at the bend of the curve, so faint sources show up
+    mid-grey while the full range up to the brightest pixel is kept (bright variable stars
+    are not clipped). `noise_arrays` (e.g. window stacks) sets the noise; defaults to `arrays`.
+    """
+    vals = np.concatenate([a[np.isfinite(a)].ravel() for a in arrays]) if arrays else np.array([])
     if vals.size == 0:
         vals = np.array([0.0, 1.0])
-    lo, hi = np.percentile(vals, [STRETCH_LO_PCT, STRETCH_HI_PCT])
-    if hi <= lo:
-        hi = lo + 1e-6
-    return {"kind": "asinh", "lo": float(lo), "hi": float(hi), "soft": ASINH_SOFTNESS, "unit": "MJy/sr"}
+    sigmas = [robust_sigma(a) for a in (noise_arrays or arrays)]
+    sigma = float(np.median([s for s in sigmas if s > 0])) if any(s > 0 for s in sigmas) else 0.0
+    med = float(np.median(vals))
+    top = float(np.percentile(vals, STRETCH_HI_PCT))
+    if sigma <= 0:
+        sigma = max((top - med) / 100.0, 1e-6)
+    lo = med - SKY_LO_SIGMA * sigma
+    hi = max(top, lo + MIN_RANGE_SIGMA * sigma)  # empty fields: keep sky dark, faint sources unclipped
+    soft = float(np.clip(SOFT_SIGMA * sigma / (hi - lo), 1e-5, 0.5))
+    return {"kind": "asinh", "lo": lo, "hi": hi, "soft": soft, "sigma": sigma, "unit": "MJy/sr"}
 
 
 def to_uint8(data: np.ndarray, p: dict) -> np.ndarray:

@@ -17,6 +17,21 @@ export function loadImage(src) {
   });
 }
 
+export const DEFAULT_DISPLAY = Object.freeze({ smooth: false, brightness: 1, contrast: 1 });
+
+/**
+ * 256-entry lookup. Brightness is a gain anchored at black (sky stays dark, faint objects lift);
+ * contrast is a power curve on the mid-tones (>1 = punchier, <1 = more faint detail).
+ */
+export function levelsLut(brightness, contrast) {
+  const lut = new Uint8ClampedArray(256);
+  for (let v = 0; v < 256; v += 1) {
+    const x = Math.min(1, (v / 255) * brightness);
+    lut[v] = Math.round(Math.pow(x, contrast) * 255);
+  }
+  return lut;
+}
+
 export class Player {
   constructor(canvas, { onFrame = () => {}, onPixel = () => {}, onPlayState = () => {} } = {}) {
     this.canvas = canvas;
@@ -32,6 +47,8 @@ export class Player {
     this.blinkPair = null;
     this.override = null;
     this.overlays = { flags: false, stars: false, exaggeration: 10 };
+    this.display = { ...DEFAULT_DISPLAY };
+    this.scratch = document.createElement('canvas');
     this.selected = null;
     this.loadToken = 0;
     this.timer = null;
@@ -154,6 +171,41 @@ export class Player {
     this.render();
   }
 
+  /** Viewing aids: smooth (bool), brightness gain (0.5..4), contrast curve (0.4..2.5). */
+  setDisplay(changes) {
+    this.display = { ...this.display, ...changes };
+    this.render();
+  }
+
+  /** Apply brightness/contrast to a greyscale frame at native resolution. */
+  adjusted(img) {
+    const { brightness, contrast } = this.display;
+    if (brightness === 1 && contrast === 1) return img;
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const c = this.scratch;
+    c.width = w;
+    c.height = h;
+    const sctx = c.getContext('2d', { willReadFrequently: true });
+    sctx.clearRect(0, 0, w, h);
+    sctx.drawImage(img, 0, 0);
+    let data;
+    try {
+      data = sctx.getImageData(0, 0, w, h);
+    } catch {
+      return img; // cross-origin image: show it unadjusted rather than fail
+    }
+    const lut = levelsLut(brightness, contrast);
+    const px = data.data;
+    for (let i = 0; i < px.length; i += 4) {
+      px[i] = lut[px[i]];
+      px[i + 1] = lut[px[i + 1]];
+      px[i + 2] = lut[px[i + 2]];
+    }
+    sctx.putImageData(data, 0, 0);
+    return c;
+  }
+
   setOverlay(name, value) {
     this.overlays = { ...this.overlays, [name]: value };
     if (name === 'flags' && value) this.loadFlags();
@@ -178,11 +230,15 @@ export class Player {
     if (!this.view || !this.images.length) return;
     const { ctx, zoom } = this;
     const size = this.canvas.width;
-    ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, size, size);
-    const base = this.override ? this.override.img : this.images[this.index];
+    const isDiff = Boolean(this.override && String(this.override.kind).startsWith('Difference'));
+    const raw = this.override ? this.override.img : this.images[this.index];
+    const base = isDiff ? raw : this.adjusted(raw); // difference colours keep their fixed meaning
+    ctx.imageSmoothingEnabled = this.display.smooth;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(base, 0, 0, size, size);
+    ctx.imageSmoothingEnabled = false;
     const flags = this.flagImages.get(this.index);
     if (this.overlays.flags && !this.override && flags) ctx.drawImage(flags, 0, 0, size, size);
     if (this.overlays.stars) this.drawStars();

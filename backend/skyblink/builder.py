@@ -212,7 +212,8 @@ def build_view(
                        "um_mean": float(np.mean([m["um_center"] for m in members]))})
     deep_img, deep_var = weighted_stack([s["img"] for s in stacks], [s["var"] for s in stacks])
 
-    stretch = asinh_stretch_params([s["img"] for s in stacks] + [r["img"] for _, r in frames])
+    stretch = asinh_stretch_params([s["img"] for s in stacks] + [r["img"] for _, r in frames],
+                                   noise_arrays=[s["img"] for s in stacks])
     sink = _InlineSink() if inline else _DiskSink(storage.view_dir(key, out_root), key)
 
     visit_rows = []

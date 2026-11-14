@@ -295,6 +295,15 @@ function bindEvents() {
     $('exag-out').textContent = `×${$('exag').value}`;
     player.setOverlay('exaggeration', Number($('exag').value));
   });
+  $('disp-smooth').addEventListener('change', (e) => player.setDisplay({ smooth: e.target.checked }));
+  $('disp-bright').addEventListener('input', (e) => player.setDisplay({ brightness: Number(e.target.value) }));
+  $('disp-contrast').addEventListener('input', (e) => player.setDisplay({ contrast: Number(e.target.value) }));
+  $('disp-reset').addEventListener('click', () => {
+    $('disp-smooth').checked = false;
+    $('disp-bright').value = '1';
+    $('disp-contrast').value = '1';
+    player.setDisplay({ smooth: false, brightness: 1, contrast: 1 });
+  });
   $('ov-flags').addEventListener('change', (e) => {
     player.setOverlay('flags', e.target.checked);
     if (e.target.checked && state.mode !== 'visits') toast('Flags are per image: switch to "Every image" to see them.');
