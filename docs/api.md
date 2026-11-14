@@ -61,7 +61,7 @@ The manifest once status is done:
       "file": "https://irsa.../level2_...fits", "collection": "spherex_dr1",
       "flag_frac": 0.03, "flag_counts": {"SOURCE": 12, "NONLINEAR": 0}
   }],
-  "stars": [{"source_id": "...", "ra":..., "dec":..., "pmra": mas/yr, "pmdec": mas/yr, "gmag": 12.3}],
+  "stars": [{"source_id": "...", "ra":..., "dec":..., "pmra": mas/yr, "pmdec": mas/yr, "gmag": 12.3, "parallax": mas|null, "bp_rp": mag|null}],
   "notes": ["Barnard's Star saturates in every band: watch the saturated core move."]
 }
 ```

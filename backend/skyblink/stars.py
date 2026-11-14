@@ -25,7 +25,7 @@ def _num(s: str) -> float | None:
 def gaia_stars(ra: float, dec: float, radius_deg: float, gmax: float = 19.0) -> list[dict]:
     """Gaia DR3 sources within radius. Empty list (logged) if VizieR is unavailable."""
     adql = (
-        "SELECT TOP {n} source_id, ra, dec, pmra, pmdec, phot_g_mean_mag FROM gaiadr3.gaia_source "
+        "SELECT TOP {n} source_id, ra, dec, pmra, pmdec, phot_g_mean_mag, parallax, bp_rp FROM gaiadr3.gaia_source "
         "WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.6f}, {dec:.6f}, {r:.5f})) "
         "AND phot_g_mean_mag < {g} ORDER BY phot_g_mean_mag"
     ).format(n=MAX_STARS, ra=ra, dec=dec, r=radius_deg, g=gmax)
@@ -52,6 +52,8 @@ def gaia_stars(ra: float, dec: float, radius_deg: float, gmax: float = 19.0) -> 
                 "pmra": _num(row.get("pmra")) or 0.0,
                 "pmdec": _num(row.get("pmdec")) or 0.0,
                 "gmag": _num(row.get("phot_g_mean_mag")),
+                "parallax": _num(row.get("parallax")),  # mas; None when Gaia has no solution
+                "bp_rp": _num(row.get("bp_rp")),  # colour index, mag
                 "epoch_mjd": GAIA_EPOCH_MJD,
             }
         )
