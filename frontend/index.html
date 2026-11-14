@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SkyBlink: watch the infrared sky change</title>
+  <meta name="description" content="Type a star name or sky coordinates and watch NASA SPHEREx near-infrared images of that patch of sky as a looping animation. Things that move or change brightness jump out.">
+  <meta name="theme-color" content="#070b18">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23070b18'/%3E%3Cpath d='M16 5l2.6 8.4L27 16l-8.4 2.6L16 27l-2.6-8.4L5 16l8.4-2.6z' fill='%235ce1ff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header" id="site-header">
+    <div class="brand-row">
+      <a class="brand" href="./" id="home-link" aria-label="SkyBlink home">
+        <span class="brand-mark" aria-hidden="true"></span>SkyBlink
+      </a>
+      <p class="tagline">Watch the infrared sky change, with NASA&nbsp;SPHEREx</p>
+      <span class="mock-badge" id="mock-badge" hidden>Demo data (mock)</span>
+    </div>
+
+    <form class="search" id="search-form" role="search" novalidate>
+      <div class="field grow">
+        <label for="q">Star name or sky coordinates (RA Dec)</label>
+        <input id="q" name="q" type="text" autocomplete="off" spellcheck="false" required
+               placeholder="Barnard's Star · 133.795 -7.245 · 08:55:10.8 -07:14:42"
+               aria-describedby="q-hint">
+        <p class="hint" id="q-hint">Decimal degrees or hh:mm:ss ±dd:mm:ss both work.</p>
+      </div>
+      <div class="field">
+        <label for="fov">Field of view</label>
+        <select id="fov" name="fov" aria-describedby="fov-hint">
+          <option value="0.05">0.05° (3′)</option>
+          <option value="0.1" selected>0.1° (6′)</option>
+          <option value="0.2">0.2° (12′)</option>
+          <option value="0.3">0.3° (18′)</option>
+          <option value="0.5">0.5° (30′)</option>
+        </select>
+        <p class="hint" id="fov-hint">Bigger fields are slower to build.</p>
+      </div>
+      <button class="btn btn-primary" type="submit" id="go">Show me</button>
+    </form>
+
+    <div class="detectors" role="group" aria-labelledby="det-label">
+      <span class="det-label" id="det-label">Wavelength band</span>
+      <div class="det-tabs" id="det-tabs">
+        <button type="button" class="det" data-det="D1" aria-pressed="false"><b>D1</b><span>0.75–1.09 µm</span></button>
+        <button type="button" class="det" data-det="D2" aria-pressed="false"><b>D2</b><span>1.10–1.62 µm</span></button>
+        <button type="button" class="det" data-det="D3" aria-pressed="false"><b>D3</b><span>1.63–2.41 µm</span></button>
+        <button type="button" class="det" data-det="D4" aria-pressed="false"><b>D4</b><span>2.42–3.82 µm</span></button>
+        <button type="button" class="det" data-det="D5" aria-pressed="false"><b>D5</b><span>3.83–4.41 µm</span></button>
+        <button type="button" class="det" data-det="D6" aria-pressed="true"><b>D6</b><span>4.42–5.00 µm</span></button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <section class="status card" id="status" hidden aria-live="polite">
+      <div class="status-row">
+        <span class="spinner" aria-hidden="true"></span>
+        <p id="status-msg">Starting…</p>
+      </div>
+      <div class="progress" role="progressbar" id="progress" aria-label="Build progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <p class="hint">New patches of sky are fetched live from the NASA/IPAC archive, which can take a minute or two. Featured targets load instantly.</p>
+    </section>
+
+    <div class="error card" id="error" role="alert" hidden>
+      <p id="error-msg"></p>
+      <button type="button" class="btn btn-ghost" id="error-retry" hidden>Try again</button>
+    </div>
+
+    <section class="home" id="home" aria-labelledby="home-title">
+      <div class="intro">
+        <h1 id="home-title">Spot what moves in the infrared sky</h1>
+        <p>SPHEREx is a NASA space telescope that photographs the whole sky in 102 infrared colours, coming back to every spot about every six months. SkyBlink lines up those pictures of one small patch and plays them as a flip-book.</p>
+        <p><strong>Each frame is one SPHEREx look at this patch of sky. Things that jump between frames are moving.</strong> Things that get brighter and fainter are variable.</p>
+      </div>
+      <h2 class="section-title">Featured targets</h2>
+      <ul class="gallery" id="gallery" aria-live="polite">
+        <li class="card skeleton" aria-hidden="true"></li>
+        <li class="card skeleton" aria-hidden="true"></li>
+        <li class="card skeleton" aria-hidden="true"></li>
+      </ul>
+    </section>
+
+    <section class="viewer" id="viewer" hidden aria-labelledby="view-title">
+      <div class="viewer-head">
+        <div>
+          <h2 id="view-title">Target</h2>
+          <p class="coords" id="view-coords"></p>
+        </div>
+        <div class="share">
+          <button type="button" class="btn btn-ghost" id="copy-link">Copy link</button>
+          <button type="button" class="btn btn-ghost" id="copy-embed">Copy embed code</button>
+          <a class="btn btn-ghost embed-only" id="open-full" target="_blank" rel="noopener">Open in SkyBlink ↗</a>
+        </div>
+      </div>
+      <p class="explainer">Each frame is one SPHEREx look at this patch of sky. Things that jump between frames are moving. The red crosshair marks the position you asked for; north is up and east is left.</p>
+      <ul class="notes" id="notes"></ul>
+
+      <div class="viewer-grid">
+        <div class="player-col">
+          <div class="stage" id="stage">
+            <canvas id="canvas" width="708" height="708" role="img" aria-label="SPHEREx image of the target. Click a pixel to see its spectrum; swipe sideways to step frames."></canvas>
+            <div class="frame-label" id="frame-label" aria-live="off"></div>
+            <div class="stage-badge" id="stage-badge" hidden></div>
+            <div class="compass" aria-hidden="true"><span>N ↑</span><span>E ←</span></div>
+            <div class="stage-loading" id="stage-loading" hidden><span class="spinner" aria-hidden="true"></span><span id="stage-loading-msg">Loading frames…</span></div>
+          </div>
+
+          <div class="transport" role="group" aria-label="Playback">
+            <button type="button" class="btn icon" id="prev" aria-label="Previous frame (left arrow)">⏮</button>
+            <button type="button" class="btn btn-primary icon play" id="play" aria-label="Play (space)" aria-pressed="false">▶</button>
+            <button type="button" class="btn icon" id="next" aria-label="Next frame (right arrow)">⏭</button>
+            <div class="fps field-inline">
+              <label for="fps">Speed</label>
+              <input type="range" id="fps" min="0.5" max="12" step="0.5" value="2" aria-describedby="fps-out">
+              <output id="fps-out" for="fps">2 fps</output>
+            </div>
+            <div class="segmented" role="radiogroup" aria-label="Frames to show" id="mode-group">
+              <button type="button" role="radio" data-mode="stack" aria-checked="true">Stacked per survey window</button>
+              <button type="button" role="radio" data-mode="visits" aria-checked="false">Every image</button>
+            </div>
+          </div>
+
+          <div class="timeline">
+            <label class="sr-only" for="scrub">Frame</label>
+            <input type="range" id="scrub" min="0" max="0" value="0" step="1">
+            <div class="ticks" id="ticks" aria-hidden="true"></div>
+            <p class="hint keys">Keys: <kbd>Space</kbd> play/pause · <kbd>←</kbd> <kbd>→</kbd> step · click the image for a spectrum</p>
+          </div>
+
+          <div class="overlay-controls" role="group" aria-label="Overlays">
+            <label class="check"><input type="checkbox" id="ov-stars"> Gaia stars and their motion</label>
+            <div class="field-inline" id="exag-wrap">
+              <label for="exag">Arrow exaggeration</label>
+              <input type="range" id="exag" min="1" max="100" step="1" value="10">
+              <output id="exag-out" for="exag">×10</output>
+            </div>
+            <label class="check"><input type="checkbox" id="ov-flags"> Flagged pixels</label>
+          </div>
+
+          <section class="compare card" aria-labelledby="compare-title">
+            <h3 id="compare-title">Compare</h3>
+            <div class="segmented" role="radiogroup" aria-label="Compare tool" id="tool-group">
+              <button type="button" role="radio" data-tool="animate" aria-checked="true">Animation</button>
+              <button type="button" role="radio" data-tool="blink" aria-checked="false">Blink A/B</button>
+              <button type="button" role="radio" data-tool="diff" aria-checked="false">Difference</button>
+              <button type="button" role="radio" data-tool="deep" aria-checked="false">Deep stack</button>
+            </div>
+            <div class="tool-panel" data-panel="animate">
+              <p>Plays every frame in order. Use the speed slider and timeline above.</p>
+            </div>
+            <div class="tool-panel" data-panel="blink" hidden>
+              <div class="ab-row">
+                <div class="field"><label for="blink-a">Frame A</label><select id="blink-a"></select></div>
+                <div class="field"><label for="blink-b">Frame B</label><select id="blink-b"></select></div>
+                <button type="button" class="btn btn-primary" id="blink-go" aria-pressed="false">Start blinking</button>
+              </div>
+              <p class="hint">Swaps between the two frames once per second, well under the WCAG limit of three flashes per second, so it is safe for people with photosensitive conditions.</p>
+            </div>
+            <div class="tool-panel" data-panel="diff" hidden>
+              <div class="ab-row">
+                <div class="field"><label for="diff-a">From frame A</label><select id="diff-a"></select></div>
+                <div class="field"><label for="diff-b">To frame B</label><select id="diff-b"></select></div>
+                <button type="button" class="btn btn-primary" id="diff-go">Show difference</button>
+              </div>
+              <div class="legend" aria-label="Difference colour legend">
+                <span class="swatch blue" aria-hidden="true"></span> brighter in A
+                <span class="legend-bar" aria-hidden="true"></span>
+                brighter in B <span class="swatch red" aria-hidden="true"></span>
+              </div>
+              <p class="hint">B minus A. A moving star shows up as a blue/red pair: blue where it was, red where it went.</p>
+            </div>
+            <div class="tool-panel" data-panel="deep" hidden>
+              <p id="deep-info">All images added together: the deepest, least noisy view. Moving objects smear out.</p>
+            </div>
+          </section>
+        </div>
+
+        <aside class="side card" aria-label="Details">
+          <div class="tabs" role="tablist" aria-label="Details">
+            <button type="button" role="tab" id="tab-info" aria-controls="panel-info" aria-selected="true">Frame info</button>
+            <button type="button" role="tab" id="tab-spec" aria-controls="panel-spec" aria-selected="false" tabindex="-1">Spectrum</button>
+            <button type="button" role="tab" id="tab-atlas" aria-controls="panel-atlas" aria-selected="false" tabindex="-1">Sky atlas</button>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="panel-info" aria-labelledby="tab-info" tabindex="0">
+            <dl class="meta" id="meta"></dl>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="panel-spec" aria-labelledby="tab-spec" tabindex="0" hidden>
+            <p class="hint" id="spec-hint">Click any pixel in the image to see how bright it is at each infrared wavelength.</p>
+            <button type="button" class="btn btn-ghost" id="spec-centre">Spectrum of the centre pixel</button>
+            <canvas id="spec-canvas" class="spec-canvas" role="img" aria-label="Spectrum chart: brightness against wavelength"></canvas>
+            <ul class="spec-legend" id="spec-legend"></ul>
+            <p class="hint">Only bands already built for this position appear. Build another band with the detector buttons to add it.</p>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="panel-atlas" aria-labelledby="tab-atlas" tabindex="0" hidden>
+            <div class="field-inline">
+              <label for="atlas-survey">Background</label>
+              <select id="atlas-survey">
+                <option value="2mass">2MASS (near-infrared)</option>
+                <option value="allwise">AllWISE (mid-infrared)</option>
+              </select>
+            </div>
+            <div class="aladin" id="aladin"><p class="hint">Loading the Aladin sky atlas…</p></div>
+            <p class="hint">Catalogues: Gaia DR3 (cyan circles) and AllWISE (orange squares). Click a source for details. Courtesy CDS, Strasbourg.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer" id="site-footer">
+    <p>Images: NASA SPHEREx via NASA/IPAC Infrared Science Archive. Stars: ESA Gaia DR3. Sky atlas: Aladin Lite, CDS Strasbourg. Built for NASA Space Apps 2026.</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

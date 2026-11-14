@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+cache/
+.venv/
+*.fits
+.env
+*.pdf
+public/
+backend/skyblink/static_keys.json
+.vercel

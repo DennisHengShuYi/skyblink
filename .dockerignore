@@ -1,0 +1,8 @@
+cache/
+.git/
+**/__pycache__/
+.pytest_cache/
+backend/tests/
+frontend/mock/
+docs/
+*.pdf

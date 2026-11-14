@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
+  "outputDirectory": "public",
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300,
+      "memory": 2048,
+      "excludeFiles": "{public/**,featured/**,cache/**,frontend/**,docs/**,scripts/**,backend/tests/**,*.pdf}"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/featured", "destination": "/data/featured.json" },
+    { "source": "/api/view/:key", "destination": "/data/:key/manifest.json" },
+    { "source": "/api/png/:key/:name", "destination": "/data/:key/:name" },
+    { "source": "/api/(.*)", "destination": "/api/index" }
+  ],
+  "headers": [
+    {
+      "source": "/data/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+    }
+  ]
+}

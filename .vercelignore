@@ -1,0 +1,8 @@
+cache/
+featured/
+.git/
+**/__pycache__/
+.pytest_cache/
+*.pdf
+docs/
+backend/tests/
