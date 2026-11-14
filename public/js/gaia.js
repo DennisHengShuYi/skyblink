@@ -76,3 +76,40 @@ export function frameSpan(frames) {
 export function totalPm(star) {
   return Math.hypot(Number(star.pmra) || 0, Number(star.pmdec) || 0) / 1000;
 }
+
+/** Inverse of `project`: fractional grid pixel (x, y) → {ra, dec} in degrees (RA in 0..360). */
+export function unproject(x, y, view) {
+  const centre = (view.grid.npix - 1) / 2;
+  const perPix = view.grid.scale_arcsec / 3600;
+  const xi = -(x - centre) * perPix * DEG;
+  const eta = -(y - centre) * perPix * DEG;
+  const a0 = view.ra * DEG;
+  const d0 = view.dec * DEG;
+  const den = Math.cos(d0) - eta * Math.sin(d0);
+  const ra = a0 + Math.atan2(xi, den);
+  const dec = Math.atan2(Math.sin(d0) + eta * Math.cos(d0), Math.hypot(xi, den));
+  return { ra: ((ra / DEG) % 360 + 360) % 360, dec: dec / DEG };
+}
+
+/** Stars at least as bright as `gmax` (stars without a magnitude are kept) and moving ≥ `minPm` mas/yr. */
+export function filterStars(stars, { gmax = 21, minPm = 0 } = {}) {
+  return stars.filter((s) => {
+    const g = Number(s.gmag);
+    if (Number.isFinite(g) && g > gmax) return false;
+    return totalPm(s) * 1000 >= minPm;
+  });
+}
+
+/** The overlay entry whose current position is closest to grid point (x, y), within `maxDist` px. */
+export function nearestStar(geo, x, y, maxDist) {
+  let best = null;
+  let bestD = maxDist;
+  geo.forEach((g) => {
+    const d = Math.hypot(g.now.x - x, g.now.y - y);
+    if (d <= bestD) {
+      best = g;
+      bestD = d;
+    }
+  });
+  return best;
+}

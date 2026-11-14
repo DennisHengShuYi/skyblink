@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pytest ruff
+      - name: Backend tests (offline)
+        working-directory: backend
+        run: python -m pytest -q
+      - name: Lint
+        # Reports only for now: 13 findings predate this workflow (mostly import order).
+        # Remove continue-on-error once `ruff check --fix` has been applied in backend/.
+        continue-on-error: true
+        working-directory: backend
+        run: ruff check .
+      - name: Frontend tests
+        run: npm test
+      - name: public/ is in sync with frontend/
+        run: python scripts/check_static.py

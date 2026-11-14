@@ -97,7 +97,13 @@ export function setupRadioGroup(group, attr, onChange) {
   return set;
 }
 
-export function renderGallery(list, items, onPick) {
+const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * Featured cards with a thumbnail. `media.thumb(f)` → image URL (or null);
+ * `media.frames(f)` → Promise<URL[]> of survey-window frames, cycled on hover/focus.
+ */
+export function renderGallery(list, items, onPick, media = {}) {
   list.replaceChildren();
   if (!items.length) {
     list.append(el('li', { class: 'hint' }, 'No featured targets yet. Search for any star above.'));
@@ -105,12 +111,36 @@ export function renderGallery(list, items, onPick) {
   }
   items.forEach((f) => {
     const kind = f.kind === 'variable' ? 'Changes brightness' : 'Moves';
+    const thumbSrc = media.thumb ? media.thumb(f) : null;
+    const thumb = thumbSrc ? el('img', { class: 'feature-thumb', src: thumbSrc, alt: '', loading: 'lazy', width: 96, height: 96 }) : null;
     const btn = el('button', { type: 'button', class: 'feature' },
-      el('span', { class: `kind kind-${f.kind === 'variable' ? 'variable' : 'motion'}` }, kind),
-      el('span', { class: 'feature-name' }, f.name),
-      el('span', { class: 'feature-caption' }, f.caption || ''),
-      el('span', { class: 'feature-meta' }, `${f.det || ''} · ${f.fov || ''}° field`));
+      thumb,
+      el('span', { class: 'feature-body' },
+        el('span', { class: `kind kind-${f.kind === 'variable' ? 'variable' : 'motion'}` }, kind),
+        el('span', { class: 'feature-name' }, f.name),
+        el('span', { class: 'feature-caption' }, f.caption || ''),
+        el('span', { class: 'feature-meta' }, `${f.det || ''} · ${f.fov || ''}° field`)));
     btn.addEventListener('click', () => onPick(f));
+    if (thumb && media.frames && !reducedMotion()) {
+      let timer = null;
+      let urls = null;
+      const start = async () => {
+        if (timer) return;
+        try {
+          urls = urls || await media.frames(f);
+        } catch {
+          urls = [];
+        }
+        if (urls.length < 2 || timer) return;
+        let k = 0;
+        timer = setInterval(() => { k = (k + 1) % urls.length; thumb.src = urls[k]; }, 700);
+      };
+      const stop = () => { clearInterval(timer); timer = null; thumb.src = thumbSrc; };
+      btn.addEventListener('pointerenter', start);
+      btn.addEventListener('focus', start);
+      btn.addEventListener('pointerleave', stop);
+      btn.addEventListener('blur', stop);
+    }
     list.append(el('li', { class: 'card feature-card' }, btn));
   });
 }
@@ -128,7 +158,10 @@ export function formatDate(frame, mode) {
 export function frameTitle(frame, mode, view, index, total) {
   if (!frame) return '';
   const pos = `${index + 1}/${total}`;
-  if (mode === 'visits') return `${formatDate(frame, mode)} · image ${pos}`;
+  if (mode === 'visits') {
+    const um = Number.isFinite(frame.um) ? ` · ${frame.um.toFixed(3)} µm` : '';
+    return `${formatDate(frame, mode)}${um} · image ${pos}`;
+  }
   const win = (view.windows || []).find((w) => w.id === frame.window);
   const label = win ? `Survey window ${win.label}` : formatDate(frame, mode);
   return `${label} · ${frame.n ?? '?'} images stacked · ${pos}`;
@@ -153,6 +186,34 @@ export function renderTicks(container, frames, onPick) {
 
 export function setActiveTick(container, index) {
   [...container.children].forEach((t, i) => t.classList.toggle('active', i === index));
+}
+
+/**
+ * Date strip: one dot per frame at its real time (survey gaps show as gaps), labelled at the
+ * start of each survey window. `positions` from frames.timePositions, `starts` from windowStarts.
+ */
+export function renderTimeStrip(container, frames, positions, starts, onPick) {
+  container.replaceChildren();
+  frames.forEach((f, i) => {
+    const dot = el('button', {
+      type: 'button', class: 'tdot', tabindex: '-1', 'aria-hidden': 'true', title: String(f.date || ''),
+    });
+    dot.style.left = `${positions[i] * 100}%`;
+    dot.addEventListener('click', () => onPick(i));
+    container.append(dot);
+  });
+  starts.forEach(({ index, label }) => {
+    const t = el('span', { class: 'tlabel', 'aria-hidden': 'true' }, label);
+    const pos = positions[index];
+    t.style.left = `${pos * 100}%`;
+    if (pos < 0.08) t.style.transform = 'none';             // keep edge labels inside the strip
+    else if (pos > 0.92) t.style.transform = 'translateX(-100%)';
+    container.append(t);
+  });
+}
+
+export function setActiveDot(container, index) {
+  [...container.querySelectorAll('.tdot')].forEach((t, i) => t.classList.toggle('active', i === index));
 }
 
 function row(dl, label, value) {

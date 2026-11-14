@@ -78,6 +78,42 @@ export async function showAladin(container, { ra, dec, fov }, survey = '2mass') 
   return aladin;
 }
 
+/**
+ * Draw the SPHEREx field outline (`corners`: [[ra, dec] × 4]) on the atlas.
+ * Best effort: older Aladin builds without overlays simply skip it.
+ */
+export function drawFootprint(aladin, corners) {
+  const A = window.A;
+  if (!aladin || !A || typeof A.graphicOverlay !== 'function') return;
+  try {
+    const overlay = A.graphicOverlay({ name: 'SPHEREx field', color: '#ff5c5c', lineWidth: 2 });
+    aladin.addOverlay(overlay);
+    overlay.add(A.polygon(corners));
+  } catch {
+    // The atlas still works without the outline.
+  }
+}
+
+const selection = new WeakMap();
+
+/** Mark the pixel picked in the player (green) so the atlas shows what you clicked. */
+export function markSelection(aladin, ra, dec) {
+  const A = window.A;
+  if (!aladin || !A || typeof A.catalog !== 'function') return;
+  try {
+    let cat = selection.get(aladin);
+    if (!cat) {
+      cat = A.catalog({ name: 'Selected pixel', sourceSize: 16, color: '#7CFC9A', shape: 'cross' });
+      aladin.addCatalog(cat);
+      selection.set(aladin, cat);
+    }
+    cat.removeAll();
+    cat.addSources([A.source(ra, dec, { name: 'Selected pixel' })]);
+  } catch {
+    // Selection marker is a nicety; ignore failures.
+  }
+}
+
 export function setSurvey(aladin, survey) {
   const id = SURVEYS[survey]?.id;
   if (!aladin || !id) return;

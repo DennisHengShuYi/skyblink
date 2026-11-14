@@ -1,15 +1,33 @@
-// Canvas frame player: crisp integer-scaled pixels, crosshair, optional flags and
-// Gaia overlays, play/pause/step, A/B blink and a still-image override (diff/deep).
-import { starGeometry, frameSpan, totalPm } from './gaia.js';
+// Canvas frame player. Frames render from the view's float cube once it arrives
+// (shared stretch, colour map, levels, Catmull-Rom smoothing); until then from the
+// PNGs. Zoom/pan/pinch, hover readout, crosshair, flags and Gaia overlays,
+// play/pause/step with loop modes, A/B blink and still overrides (diff/deep/reference).
+import { starGeometry, frameSpan, totalPm, filterStars, nearestStar } from './gaia.js';
+import { planeFor } from './cube.js';
+import {
+  applyLevels, levelsLut, colormapLut, catmullRomUpscale, composeRGBA, planeToValues,
+} from './render.js';
+import { stackVariance, deepVariance } from './photometry.js';
+import { nextIndex } from './frames.js';
+import { fitViewport, zoomAt, panBy, gridToScreen, screenToGrid } from './viewport.js';
 
 const TARGET_PX = 720;
-const BLINK_INTERVAL_MS = 1000; // 1 change per second: well under the WCAG 3-flashes/s limit
+const MAX_CANVAS_PX = 1440;
 const SWIPE_PX = 30;
-const COLORS = { cross: 'rgba(255, 92, 92, 0.9)', star: '#5ce1ff', arrow: '#ffd166', fast: '#ff9f1c' };
+const DRAG_PX = 4;
+const STAR_HOVER_PX = 1.6; // grid pixels
+const ARROW_MIN_MAS = 20;  // only stars moving at least this fast get a motion arrow
+const FAST_PM = 0.5;       // ″/yr: highlighted and labelled
+const SMOOTH_CACHE = 24;
+const COLORS = { cross: 'rgba(255, 92, 92, 0.9)', star: 'rgba(92, 225, 255, 0.75)', arrow: '#ffd166', fast: '#ff9f1c', select: '#7CFC9A' };
 
-export function loadImage(src) {
+export { levelsLut };
+export const DEFAULT_DISPLAY = Object.freeze({ smooth: false, brightness: 1, contrast: 1, cmap: 'grey', stretch: 'asinh' });
+
+export function loadImage(src, { crossOrigin = null } = {}) {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    if (crossOrigin) img.crossOrigin = crossOrigin;
     img.decoding = 'async';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`Could not load image ${src}`));
@@ -17,79 +35,112 @@ export function loadImage(src) {
   });
 }
 
-export const DEFAULT_DISPLAY = Object.freeze({ smooth: false, brightness: 1, contrast: 1 });
-
-/**
- * 256-entry lookup. Brightness is a gain anchored at black (sky stays dark, faint objects lift);
- * contrast is a power curve on the mid-tones (>1 = punchier, <1 = more faint detail).
- */
-export function levelsLut(brightness, contrast) {
-  const lut = new Uint8ClampedArray(256);
-  for (let v = 0; v < 256; v += 1) {
-    const x = Math.min(1, (v / 255) * brightness);
-    lut[v] = Math.round(Math.pow(x, contrast) * 255);
-  }
-  return lut;
-}
+/** Frame → cube plane reference (`v<i>` for a visit, `s<window>` for a stack). */
+export const frameRef = (f) => (Number.isInteger(f.i) ? `v${f.i}` : `s${f.window}`);
 
 export class Player {
-  constructor(canvas, { onFrame = () => {}, onPixel = () => {}, onPlayState = () => {} } = {}) {
+  constructor(canvas, cb = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.cb = { onFrame, onPixel, onPlayState };
+    this.cb = { onFrame() {}, onPixel() {}, onPlayState() {}, onHover() {}, onViewport() {}, onSwipe: (d) => this.step(d), ...cb };
     this.view = null;
     this.frames = [];
     this.images = [];
+    this.cube = null;
     this.flagImages = new Map();
     this.index = 0;
+    this.dir = 1;
     this.fps = 2;
+    this.loopMode = 'loop';
+    this.blinkHz = 1;
     this.playing = false;
     this.blinkPair = null;
     this.override = null;
-    this.overlays = { flags: false, stars: false, exaggeration: 10 };
+    this.overlays = { flags: false, stars: false, exaggeration: 10, gmax: 21, minPm: 0, cross: 'cross' };
     this.display = { ...DEFAULT_DISPLAY };
-    this.scratch = document.createElement('canvas');
     this.selected = null;
+    this.hoverStar = null;
     this.loadToken = 0;
     this.timer = null;
+    this.cache = new Map();
+    this.greyCache = new Map();
+    this.varCache = new Map();
+    this.vp = { cx: 0, cy: 0, z: 1 };
     this.bindPointer();
   }
 
-  /** Preload every frame PNG, then show frame 0. `frames`: [{png, flags_png?, mjd}] */
-  async load(view, frames, onProgress = () => {}) {
+  get P() {
+    return this.view ? this.view.grid.npix : 1;
+  }
+
+  /** Show frame `startIndex` as soon as it loads; the rest keep loading in the background. */
+  async load(view, frames, { startIndex = 0, onProgress = () => {} } = {}) {
     const token = ++this.loadToken;
     this.pause();
     this.stopBlink();
+    const sameView = this.view && view && this.view.key === view.key;
     let done = 0;
     onProgress(0, frames.length);
-    const images = await Promise.all(frames.map((f) => loadImage(f.png).then((img) => {
+    const images = new Array(frames.length).fill(null);
+    const start = Math.min(Math.max(0, startIndex), frames.length - 1);
+    const loads = frames.map((f, i) => loadImage(f.png).then((img) => {
       done += 1;
-      if (token === this.loadToken) onProgress(done, frames.length);
-      return img;
-    })));
+      if (token !== this.loadToken) return;
+      images[i] = img;
+      onProgress(done, frames.length);
+      if (i === this.index && this.images === images) this.render();
+    }));
+    await loads[start];
     if (token !== this.loadToken) return false;
     this.view = view;
+    if (!sameView) {
+      this.cube = null;
+      this.varCache = new Map();
+      this.vp = fitViewport(view.grid.npix);
+      this.selected = null;
+    }
     this.frames = frames;
     this.images = images;
     this.flagImages = new Map();
     this.span = frameSpan(frames);
     this.override = null;
-    this.selected = null;
+    this.clearCaches();
     this.resize();
-    this.setIndex(Math.min(this.index, frames.length - 1));
+    this.setIndex(start);
     if (this.overlays.flags) this.loadFlags();
+    Promise.allSettled(loads).then(() => {
+      if (token === this.loadToken && loads.length !== done) onProgress(done, frames.length);
+    });
     return true;
   }
 
+  /** Switch to float-cube rendering (exact shared stretch, colour maps, values under the cursor). */
+  setCube(cube) {
+    this.cube = cube;
+    this.varCache = new Map();
+    this.clearCaches();
+    this.render();
+  }
+
+  clearCaches() {
+    this.cache = new Map();
+    this.smoothKeys = [];
+    this.greyCache = new Map();
+  }
+
   resize() {
-    const npix = this.view.grid.npix;
-    this.zoom = Math.max(1, Math.floor(TARGET_PX / npix));
-    this.canvas.width = npix * this.zoom;
-    this.canvas.height = npix * this.zoom;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const zoom = Math.max(1, Math.floor(Math.min(MAX_CANVAS_PX, TARGET_PX * dpr) / this.P));
+    this.canvas.width = this.P * zoom;
+    this.canvas.height = this.P * zoom;
   }
 
   get frame() {
     return this.frames[this.index];
+  }
+
+  get loaded() {
+    return Boolean(this.images[this.index]);
   }
 
   setIndex(i) {
@@ -111,9 +162,15 @@ export class Player {
     if (this.playing) this.schedule();
   }
 
+  setLoopMode(mode) {
+    this.loopMode = mode;
+    this.dir = 1;
+  }
+
   play() {
     if (this.frames.length < 2) return;
     this.stopBlink();
+    if (this.loopMode === 'once' && this.index === this.frames.length - 1) this.setIndex(0);
     this.playing = true;
     this.schedule();
     this.cb.onPlayState(true);
@@ -123,6 +180,7 @@ export class Player {
     clearTimeout(this.timer);
     if (this.playing) {
       this.playing = false;
+      if (this.display.smooth) this.render(); // full-quality smoothing on the still frame
       this.cb.onPlayState(false);
     }
   }
@@ -136,20 +194,29 @@ export class Player {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       if (!this.playing) return;
-      this.setIndex(this.index + 1);
-      this.schedule();
+      const next = nextIndex(this.index, this.frames.length, this.loopMode, this.dir);
+      this.dir = next.dir;
+      this.setIndex(next.index);
+      if (next.stop) this.pause();
+      else this.schedule();
     }, 1000 / this.fps);
+  }
+
+  setBlinkRate(hz) {
+    this.blinkHz = Math.min(2, Math.max(0.5, hz)); // ≤ 2 changes/s: well under the 3/s WCAG limit
+    if (this.blinkPair) this.startBlink(...this.blinkPair);
   }
 
   startBlink(a, b) {
     this.pause();
+    this.stopBlink();
     this.clearOverride();
     this.blinkPair = [a, b];
     this.setIndex(a);
     this.blinkTimer = setInterval(() => {
       const [x, y] = this.blinkPair;
       this.setIndex(this.index === x ? y : x);
-    }, BLINK_INTERVAL_MS);
+    }, 1000 / this.blinkHz);
   }
 
   stopBlink() {
@@ -157,11 +224,14 @@ export class Player {
     this.blinkPair = null;
   }
 
-  /** Show a still image (difference or deep stack) instead of the frames. */
-  setOverride(img, kind) {
+  /**
+   * Show a still instead of the frames: {kind: 'diff', rgba} (P×P colours),
+   * {kind: 'deep', img} (rendered from the cube when available) or {kind: 'reference', img}.
+   */
+  setOverride(override) {
     this.pause();
     this.stopBlink();
-    this.override = { img, kind };
+    this.override = override;
     this.render();
   }
 
@@ -171,39 +241,10 @@ export class Player {
     this.render();
   }
 
-  /** Viewing aids: smooth (bool), brightness gain (0.5..4), contrast curve (0.4..2.5). */
   setDisplay(changes) {
     this.display = { ...this.display, ...changes };
+    this.clearCaches();
     this.render();
-  }
-
-  /** Apply brightness/contrast to a greyscale frame at native resolution. */
-  adjusted(img) {
-    const { brightness, contrast } = this.display;
-    if (brightness === 1 && contrast === 1) return img;
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    const c = this.scratch;
-    c.width = w;
-    c.height = h;
-    const sctx = c.getContext('2d', { willReadFrequently: true });
-    sctx.clearRect(0, 0, w, h);
-    sctx.drawImage(img, 0, 0);
-    let data;
-    try {
-      data = sctx.getImageData(0, 0, w, h);
-    } catch {
-      return img; // cross-origin image: show it unadjusted rather than fail
-    }
-    const lut = levelsLut(brightness, contrast);
-    const px = data.data;
-    for (let i = 0; i < px.length; i += 4) {
-      px[i] = lut[px[i]];
-      px[i + 1] = lut[px[i + 1]];
-      px[i + 2] = lut[px[i + 2]];
-    }
-    sctx.putImageData(data, 0, 0);
-    return c;
   }
 
   setOverlay(name, value) {
@@ -214,11 +255,11 @@ export class Player {
 
   async loadFlags() {
     const token = this.loadToken;
-    await Promise.all(this.frames.map(async (f, i) => {
-      if (!f.flags_png || this.flagImages.has(i)) return;
+    await Promise.all(this.frames.map(async (f) => {
+      if (!f.flags_png || this.flagImages.has(f.flags_png)) return;
       try {
         const img = await loadImage(f.flags_png);
-        if (token === this.loadToken) this.flagImages.set(i, img);
+        if (token === this.loadToken) this.flagImages.set(f.flags_png, img);
       } catch {
         // A missing flags overlay is not fatal; the frame is simply drawn without it.
       }
@@ -226,69 +267,252 @@ export class Player {
     if (token === this.loadToken) this.render();
   }
 
-  render() {
-    if (!this.view || !this.images.length) return;
-    const { ctx, zoom } = this;
-    const size = this.canvas.width;
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, size, size);
-    const isDiff = Boolean(this.override && String(this.override.kind).startsWith('Difference'));
-    const raw = this.override ? this.override.img : this.images[this.index];
-    const base = isDiff ? raw : this.adjusted(raw); // difference colours keep their fixed meaning
-    ctx.imageSmoothingEnabled = this.display.smooth;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(base, 0, 0, size, size);
-    ctx.imageSmoothingEnabled = false;
-    const flags = this.flagImages.get(this.index);
-    if (this.overlays.flags && !this.override && flags) ctx.drawImage(flags, 0, 0, size, size);
-    if (this.overlays.stars) this.drawStars();
-    if (this.selected) this.drawSelection();
-    this.drawCrosshair(size, zoom);
+  // ---------- zoom and pan ----------
+
+  setViewport(vp) {
+    this.vp = vp;
+    this.render();
+    this.cb.onViewport(vp);
   }
 
-  drawCrosshair(size, zoom) {
+  zoomBy(factor, gx = this.vp.cx, gy = this.vp.cy) {
+    if (!this.view) return;
+    this.setViewport(zoomAt(this.vp, factor, gx, gy, this.P));
+  }
+
+  resetZoom() {
+    if (this.view) this.setViewport(fitViewport(this.P));
+  }
+
+  // ---------- pixel data ----------
+
+  /** Float plane for the current frame (or the deep stack override), or null before the cube loads. */
+  currentPlane() {
+    if (!this.cube || !this.view) return null;
+    if (this.override?.kind === 'deep') return planeFor(this.cube, this.view, 'deep');
+    if (this.override) return null;
+    return planeFor(this.cube, this.view, frameRef(this.frame));
+  }
+
+  currentVariance() {
+    if (!this.cube) return null;
+    const deep = this.override?.kind === 'deep';
+    const f = this.frame;
+    const key = deep ? 'deep' : frameRef(f);
+    if (!this.varCache.has(key)) {
+      let v;
+      if (deep) v = deepVariance(this.cube);
+      else if (Number.isInteger(f.i)) v = this.cube.variance((this.view.visits || []).findIndex((x) => x.i === f.i));
+      else v = stackVariance(this.cube, this.view, f.window);
+      this.varCache.set(key, v);
+    }
+    return this.varCache.get(key);
+  }
+
+  /** {value, sigma} in MJy/sr at grid pixel (x, y) of what is on screen, or null. */
+  valueAt(x, y) {
+    const plane = this.currentPlane();
+    if (!plane) return null;
+    const k = y * this.P + x;
+    const v = this.currentVariance();
+    const sigma = v && v[k] > 0 ? Math.sqrt(v[k]) : NaN;
+    return { value: plane[k], sigma };
+  }
+
+  // ---------- rendering ----------
+
+  /** 0..1 display values for the current frame: from the cube, else from the PNG's grey levels. */
+  frameValues() {
+    const { stretch, brightness, contrast } = this.display;
+    const plane = this.currentPlane();
+    if (plane) return planeToValues(plane, this.view.stretch || { lo: 0, hi: 1 }, stretch, brightness, contrast);
+    const img = this.override?.kind === 'deep' ? this.override.img : this.images[this.index];
+    if (!img) return null;
+    const grey = this.pngGrey(img);
+    if (!grey) return null;
+    return grey.map((g) => applyLevels(g, brightness, contrast));
+  }
+
+  pngGrey(img) {
+    if (this.greyCache.has(img)) return this.greyCache.get(img);
+    const P = this.P;
+    const c = document.createElement('canvas');
+    c.width = P;
+    c.height = P;
+    const sctx = c.getContext('2d', { willReadFrequently: true });
+    sctx.drawImage(img, 0, 0, P, P);
+    let grey = null;
+    try {
+      const px = sctx.getImageData(0, 0, P, P).data;
+      grey = new Float32Array(P * P);
+      for (let k = 0; k < grey.length; k += 1) grey[k] = px[k * 4] / 255;
+    } catch {
+      grey = null; // cross-origin: drawn as-is
+    }
+    this.greyCache.set(img, grey);
+    return grey;
+  }
+
+  /** Composed image (canvas) for the current frame under the current display settings. */
+  composed() {
+    const o = this.override;
+    if (o?.kind === 'reference') return o.img;
+    if (o?.kind === 'diff') return this.rgbaCanvas(o.rgba, this.P);
+    const smooth = this.display.smooth && !this.playing; // Catmull-Rom only on still frames
+    const key = `${o?.kind === 'deep' ? 'deep' : this.index}|${this.cube ? 'c' : 'p'}|${smooth ? 's' : 'n'}`;
+    if (this.cache.has(key)) return this.cache.get(key);
+    const values = this.frameValues();
+    if (!values) {
+      const img = o?.kind === 'deep' ? o.img : this.images[this.index];
+      return img || null;
+    }
+    const lut = colormapLut(this.display.cmap);
+    const P = this.P;
+    let out;
+    if (smooth) {
+      const n = Math.min(this.canvas.width, P * 12);
+      out = this.rgbaCanvas(composeRGBA(catmullRomUpscale(values, P, n), lut), n);
+      this.smoothKeys.push(key);
+      if (this.smoothKeys.length > SMOOTH_CACHE) this.cache.delete(this.smoothKeys.shift());
+    } else {
+      out = this.rgbaCanvas(composeRGBA(values, lut), P);
+    }
+    this.cache.set(key, out);
+    return out;
+  }
+
+  rgbaCanvas(rgba, n) {
+    const c = document.createElement('canvas');
+    c.width = n;
+    c.height = n;
+    c.getContext('2d').putImageData(new ImageData(rgba, n, n), 0, 0);
+    return c;
+  }
+
+  render() {
+    if (!this.view || !this.frames.length) return;
     const { ctx } = this;
-    const c = size / 2;
-    const gap = Math.max(6, zoom * 1.5);
-    const len = Math.max(14, zoom * 4);
+    const size = this.canvas.width;
+    const P = this.P;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, size, size);
+    const tl = gridToScreen(this.vp, P, size, 0, 0);
+    const span = size * this.vp.z;
+    const base = this.composed();
+    if (base) {
+      // Reference images are photos at display resolution: always smooth them.
+      // Reference photos always; smoothed views use the browser's filter for diffs and during playback.
+      ctx.imageSmoothingEnabled = this.override?.kind === 'reference' || (this.display.smooth && (this.override?.kind === 'diff' || this.playing));
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(base, tl.x, tl.y, span, span);
+    } else {
+      ctx.fillStyle = 'rgba(232, 236, 248, 0.7)';
+      ctx.font = `${Math.round(size / 40)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('Loading this frame…', size / 2, size / 2);
+      ctx.textAlign = 'start';
+    }
+    ctx.imageSmoothingEnabled = false;
+    const flags = this.frame?.flags_png && this.flagImages.get(this.frame.flags_png);
+    if (this.overlays.flags && !this.override && flags) ctx.drawImage(flags, tl.x, tl.y, span, span);
+    if (this.overlays.stars) this.drawStars();
+    if (this.selected) this.drawSelection();
+    this.drawCrosshair();
+  }
+
+  /** Screen position of a grid coordinate (pixel centres are at +0.5). */
+  toScreen(gx, gy) {
+    return gridToScreen(this.vp, this.P, this.canvas.width, gx, gy);
+  }
+
+  /** Canvas pixels per grid pixel at the current zoom. */
+  get pixelSize() {
+    return (this.canvas.width / this.P) * this.vp.z;
+  }
+
+  get unit() {
+    return this.canvas.width / TARGET_PX;
+  }
+
+  drawCrosshair() {
+    const style = this.overlays.cross;
+    if (style === 'off') return;
+    const { ctx } = this;
+    const c = this.toScreen(this.P / 2, this.P / 2);
+    const px = this.pixelSize;
+    const u = this.unit;
     ctx.strokeStyle = COLORS.cross;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * u;
     ctx.beginPath();
-    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => {
-      ctx.moveTo(c + dx * gap, c + dy * gap);
-      ctx.lineTo(c + dx * (gap + len), c + dy * (gap + len));
-    });
+    if (style === 'corners') {
+      const r = Math.max(8 * u, px * 2.5);
+      const arm = Math.max(5 * u, px * 0.9);
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => {
+        ctx.moveTo(c.x + sx * r, c.y + sy * (r - arm));
+        ctx.lineTo(c.x + sx * r, c.y + sy * r);
+        ctx.lineTo(c.x + sx * (r - arm), c.y + sy * r);
+      });
+    } else {
+      const gap = Math.max(8 * u, px * 3); // clears a star's core and its Gaia marker
+      const len = Math.max(14 * u, px * 3);
+      [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => {
+        ctx.moveTo(c.x + dx * gap, c.y + dy * gap);
+        ctx.lineTo(c.x + dx * (gap + len), c.y + dy * (gap + len));
+      });
+    }
     ctx.stroke();
   }
 
-  drawStars() {
-    const { ctx, zoom } = this;
+  starGeo() {
+    if (!this.view) return [];
     const mjd = this.frame && Number.isFinite(this.frame.mjd) ? this.frame.mjd : this.span.start;
-    const geo = starGeometry(this.view, mjd, this.span, this.overlays.exaggeration);
-    const px = (v) => (v + 0.5) * zoom;
-    const r = Math.max(5, zoom * 1.6);
-    geo.forEach(({ star, now, arrow }) => {
-      const fast = totalPm(star) >= 0.5;
-      ctx.lineWidth = fast ? 2 : 1.25;
-      ctx.strokeStyle = COLORS.arrow;
-      drawArrow(ctx, px(arrow.x0), px(arrow.y0), px(arrow.x1), px(arrow.y1), Math.max(5, zoom));
-      ctx.strokeStyle = fast ? COLORS.fast : COLORS.star;
+    const stars = filterStars(Array.isArray(this.view.stars) ? this.view.stars : [], this.overlays);
+    return starGeometry({ ...this.view, stars }, mjd, this.span, this.overlays.exaggeration);
+  }
+
+  drawStars() {
+    const { ctx } = this;
+    const u = this.unit;
+    const px = this.pixelSize;
+    const gap = Math.max(4 * u, px * 1.4);  // ticks start outside the star's core...
+    const tick = Math.max(4 * u, px * 0.9); // ...so the marker never covers what it marks
+    this.starGeo().forEach(({ star, now, arrow }) => {
+      const pm = totalPm(star);
+      const fast = pm >= FAST_PM;
+      const hover = this.hoverStar && this.hoverStar.star === star;
+      if (pm * 1000 >= ARROW_MIN_MAS) {
+        ctx.lineWidth = (fast ? 2 : 1.25) * u;
+        ctx.strokeStyle = COLORS.arrow;
+        const a = this.toScreen(arrow.x0 + 0.5, arrow.y0 + 0.5);
+        const b = this.toScreen(arrow.x1 + 0.5, arrow.y1 + 0.5);
+        drawArrow(ctx, a.x, a.y, b.x, b.y, Math.max(5 * u, px * 0.8));
+      }
+      const s = this.toScreen(now.x + 0.5, now.y + 0.5);
+      ctx.strokeStyle = fast ? COLORS.fast : hover ? '#ffffff' : COLORS.star;
+      ctx.lineWidth = (fast || hover ? 2 : 1.25) * u;
       ctx.beginPath();
-      ctx.arc(px(now.x), px(now.y), r, 0, Math.PI * 2);
+      ctx.moveTo(s.x - gap - tick, s.y);
+      ctx.lineTo(s.x - gap, s.y);
+      ctx.moveTo(s.x, s.y - gap - tick);
+      ctx.lineTo(s.x, s.y - gap);
       ctx.stroke();
       if (fast) {
         ctx.fillStyle = COLORS.fast;
-        ctx.font = `${Math.max(11, zoom)}px system-ui, sans-serif`;
-        ctx.fillText(`${totalPm(star).toFixed(2)}″/yr`, px(now.x) + r + 3, px(now.y) - r);
+        ctx.font = `${Math.round(12 * u)}px system-ui, sans-serif`;
+        ctx.fillText(`${pm.toFixed(2)}″/yr`, s.x + gap, s.y - gap);
       }
     });
   }
 
   drawSelection() {
-    const { ctx, zoom } = this;
-    ctx.strokeStyle = '#7CFC9A';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(this.selected.x * zoom - 1, this.selected.y * zoom - 1, zoom + 2, zoom + 2);
+    const { ctx } = this;
+    const { x, y, r = 0 } = this.selected;
+    const a = this.toScreen(x - r, y - r);
+    const w = (2 * r + 1) * this.pixelSize;
+    ctx.strokeStyle = COLORS.select;
+    ctx.lineWidth = 2 * this.unit;
+    ctx.strokeRect(a.x - 1, a.y - 1, w + 2, w + 2);
   }
 
   select(pixel) {
@@ -296,33 +520,113 @@ export class Player {
     this.render();
   }
 
-  /** Map a pointer event to grid pixel (col, row). */
-  pixelAt(evt) {
+  // ---------- pointer: click, swipe, drag-pan, pinch, wheel, hover ----------
+
+  gridAt(evt) {
     const rect = this.canvas.getBoundingClientRect();
-    const npix = this.view.grid.npix;
-    const x = Math.floor(((evt.clientX - rect.left) / rect.width) * npix);
-    const y = Math.floor(((evt.clientY - rect.top) / rect.height) * npix);
-    if (x < 0 || y < 0 || x >= npix || y >= npix) return null;
+    const sx = ((evt.clientX - rect.left) / rect.width) * this.canvas.width;
+    const sy = ((evt.clientY - rect.top) / rect.height) * this.canvas.width;
+    return screenToGrid(this.vp, this.P, this.canvas.width, sx, sy);
+  }
+
+  /** Map a pointer event to grid pixel (col, row), or null outside the grid. */
+  pixelAt(evt) {
+    const g = this.gridAt(evt);
+    const x = Math.floor(g.x);
+    const y = Math.floor(g.y);
+    if (x < 0 || y < 0 || x >= this.P || y >= this.P) return null;
     return { x, y };
   }
 
+  hover(evt) {
+    if (!this.view) return;
+    const pixel = evt ? this.pixelAt(evt) : null;
+    let star = null;
+    if (pixel && this.overlays.stars) {
+      const g = this.gridAt(evt);
+      star = nearestStar(this.starGeo(), g.x - 0.5, g.y - 0.5, STAR_HOVER_PX);
+    }
+    if ((star && star.star) !== (this.hoverStar && this.hoverStar.star)) {
+      this.hoverStar = star;
+      this.render();
+    }
+    this.cb.onHover(pixel, star, evt);
+  }
+
   bindPointer() {
+    const pointers = new Map();
     let start = null;
-    this.canvas.addEventListener('pointerdown', (e) => {
-      start = { x: e.clientX, y: e.clientY };
+    let pinch = null;
+    let dragged = false;
+    const c = this.canvas;
+    c.addEventListener('pointerdown', (e) => {
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 1) {
+        start = { x: e.clientX, y: e.clientY, vp: this.vp };
+        dragged = false;
+      } else if (pointers.size === 2 && this.view) {
+        const [p, q] = [...pointers.values()];
+        const mid = { clientX: (p.x + q.x) / 2, clientY: (p.y + q.y) / 2 };
+        pinch = { d: Math.hypot(p.x - q.x, p.y - q.y), vp: this.vp, g: this.gridAt(mid) };
+        start = null;
+      }
+      c.setPointerCapture?.(e.pointerId);
     });
-    this.canvas.addEventListener('pointerup', (e) => {
-      if (!start || !this.view) return;
+    c.addEventListener('pointermove', (e) => {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && pointers.size === 2) {
+        const [p, q] = [...pointers.values()];
+        const d = Math.hypot(p.x - q.x, p.y - q.y);
+        this.setViewport(zoomAt(pinch.vp, d / pinch.d, pinch.g.x, pinch.g.y, this.P));
+        return;
+      }
+      if (start && this.view && this.vp.z > 1) {
+        const dx = e.clientX - start.x;
+        const dy = e.clientY - start.y;
+        if (dragged || Math.hypot(dx, dy) > DRAG_PX) {
+          dragged = true;
+          const rect = c.getBoundingClientRect();
+          const perGrid = (rect.width / this.P) * this.vp.z;
+          this.setViewport(panBy(start.vp, dx / perGrid, dy / perGrid, this.P));
+          return;
+        }
+      }
+      if (e.pointerType === 'mouse' || !start) this.hover(e);
+    });
+    const end = (e) => {
+      pointers.delete(e.pointerId);
+      if (pinch) {
+        if (pointers.size < 2) pinch = null;
+        start = null;
+        return;
+      }
+      if (!start || !this.view || e.type === 'pointercancel') {
+        start = null;
+        return;
+      }
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
       start = null;
-      if (Math.abs(dx) > SWIPE_PX && Math.abs(dx) > Math.abs(dy)) {
-        this.step(dx < 0 ? 1 : -1);
+      if (dragged) return;
+      if (this.vp.z === 1 && Math.abs(dx) > SWIPE_PX && Math.abs(dx) > Math.abs(dy)) {
+        this.cb.onSwipe(dx < 0 ? 1 : -1);
         return;
       }
       const pixel = this.pixelAt(e);
       if (pixel) this.cb.onPixel(pixel);
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    c.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'mouse') this.hover(null);
     });
+    c.addEventListener('wheel', (e) => {
+      if (!this.view) return;
+      e.preventDefault();
+      const g = this.gridAt(e);
+      this.zoomBy(Math.exp(-e.deltaY * 0.0015), g.x, g.y);
+    }, { passive: false });
+    c.addEventListener('dblclick', () => this.resetZoom());
   }
 }
 

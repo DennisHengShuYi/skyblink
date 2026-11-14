@@ -19,13 +19,17 @@ Type a name or sky coordinates (RA/Dec) and SkyBlink plays every SPHEREx image o
 
 - **Coordinates in, time-lapse out.** It accepts decimal degrees, `hh:mm:ss ±dd:mm:ss`, or a name. Every image is cleaned, reprojected north-up onto one grid at SPHEREx's 6.15″ pixels, and shown on one shared brightness scale, so frames can be compared directly.
 - **Stacked per detector.** By default it shows one frame per six-month survey window per detector (D1–D6, 0.75–5.0 µm). Each frame is an inverse-variance-weighted stack of every image that detector took in that window, which gives much higher signal-to-noise than a single image. You can switch to *every image* to see the raw frames.
-- **Compare tools.** Blink A/B (1 Hz, under the WCAG flash limit), a difference image (red = brighter later, blue = brighter earlier), and a deep stack of everything.
-- **Spectra on the fly.** Click any pixel to plot flux against wavelength from every SPHEREx image in every detector. SPHEREx's linear variable filters give each image its own wavelength at that pixel, read from the WCS-WAVE table.
-- **Gaia DR3 overlay.** Shows each star's proper motion as an arrow, plus where Gaia predicts the star should be in each frame, so a moving star visibly tracks its marker.
+- **Compare tools.** Blink A/B (0.5–2 swaps a second, under the WCAG flash limit), a difference image (red = brighter later, blue = brighter earlier) scaled by each pixel's own noise (S/N) or by the image scatter, a deep stack of everything, and a sharper 2MASS/AllWISE/DSS reference image of the same field.
+- **Display.** Frames render in the browser from the float data cube, always on the view's one shared brightness scale: asinh, linear, square-root, log or "faint" stretch, grey/inferno/viridis/cubehelix colours, brightness and contrast, crisp or Catmull-Rom smoothed pixels, a colour bar, and a hover readout of pixel value, S/N and RA/Dec.
+- **Zoom and pan.** Scroll, pinch, drag, the +/− buttons or the keyboard; double-click to fit.
+- **Light curve.** Click a pixel (1×1, 3×3 or 5×5 aperture) for flux against time, coloured by wavelength; click a point to jump to that image.
+- **Spectra on the fly.** Click any pixel to plot flux against wavelength from every SPHEREx image of the current detector, and add the other detectors with one click. Hover for values, colour by band or survey window, log scale, CSV download; saturated star cores are drawn hollow. SPHEREx's linear variable filters give each image its own wavelength at that pixel, read from the WCS-WAVE table.
+- **Gaia DR3 overlay.** Small ticks beside each star (never on top of it) mark where Gaia predicts the star in each frame, with motion arrows for stars moving ≥ 20 mas/yr. Filter by G magnitude and proper motion; hover a star for its Gaia ID, magnitude and motion.
 - **Metadata.** Every frame links to its SPHEREx file and shows the observation time, wavelength at the target, and contamination and saturation flags (as an overlay).
 - **Choose the field of view** from 0.05° to 0.5°.
 - **Sky atlas.** An Aladin Lite panel with Gaia DR3 and AllWISE catalogs.
-- **Shareable and embeddable.** The whole view lives in the URL (`/?ra=133.75991&dec=-7.24225&fov=0.1&det=D6&mode=stack`), and `&embed=1` gives a bare player for iframes.
+- **Save.** The current frame as PNG, the animation as video (WebM/MP4), spectra and light curves as CSV.
+- **Shareable and embeddable.** The whole view, including tool, display settings, overlays and the selected pixel, lives in the URL (`/?ra=133.75991&dec=-7.24225&fov=0.1&det=D6&mode=stack`), and `&embed=1` gives a bare player for iframes.
 
 ## Featured test targets
 
@@ -63,6 +67,8 @@ pip install -r requirements.txt
 cd backend && uvicorn skyblink.main:app --port 8000
 # open http://localhost:8000
 python -m pytest            # from backend/
+npm test                    # from the repo root: frontend unit tests (node --test, no install)
+python scripts/check_static.py   # public/ must match frontend/ (CI checks this)
 ```
 
 To try the frontend without a backend, run `python frontend/mock/serve.py 8000` and open `http://127.0.0.1:8000/?mock=1`.

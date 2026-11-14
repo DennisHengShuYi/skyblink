@@ -10,6 +10,26 @@ Page URL state (shareable/embeddable): `/?ra=133.79513&dec=-7.24515&fov=0.1&det=
 - `det`: D1..D6. `mode`: `stack` (one frame per survey window) or `visits` (every image).
 - `embed=1` hides the header/controls except the player.
 
+Optional view settings, so a shared link reopens exactly what was on screen. Each is left out of
+the URL at its default; invalid values fall back to the default (`frontend/js/urlstate.js`).
+
+| Param | Values (default first) | Meaning |
+|---|---|---|
+| `frame` | `0`, integer | frame index shown (in the current order) |
+| `tool` | `animate`, `blink`, `diff`, `deep`, `reference` | compare tool; `blink`/`diff` start with `a`/`b` |
+| `a`, `b` | frame indices | the A/B frames for blink and difference |
+| `blink` | `1`, `0.5`, `2` | blink swaps per second (never above 2: WCAG limit is 3) |
+| `sort` | `time`, `wavelength` | frame order in `visits` mode |
+| `loop` | `loop`, `bounce`, `once` | playback repeat |
+| `cmap` | `grey`, `inferno`, `viridis`, `cubehelix` | colour map |
+| `stretch` | `asinh`, `linear`, `sqrt`, `log`, `faint` | display stretch, always on the view's one shared `lo/hi` |
+| `bright`, `contrast` | `1` (0.5–4), `1` (0.4–2.5) | display gain and mid-tone curve |
+| `smooth` | absent, `1` | Catmull-Rom smoothing |
+| `stars`, `gmax`, `minpm` | absent/`1`; `21` (8–21); `0`, `20`, `100`, `500` | Gaia overlay, G-magnitude limit, minimum proper motion (mas/yr) |
+| `flags` | absent, `1` | flagged-pixel overlay (per image) |
+| `cross` | `cross`, `corners`, `off` | target marker |
+| `px`, `py`, `ap` | pixel; `0`, `1`, `2` | selected pixel (spectrum/light curve) and aperture radius |
+
 ## GET /api/resolve?q=<text>
 Accepts a name ("Barnard's Star"), decimal "133.795 -7.245", or sexagesimal "08h55m10.831s -7d14m42.53s" / "08:55:10.8 -07:14:42".
 `200 {"ra": 133.795129, "dec": -7.245147, "name": "WISE 0855", "source": "sesame|parsed"}`; `404 {"detail": "..."}`.

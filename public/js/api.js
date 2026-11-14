@@ -19,7 +19,8 @@ async function request(path, options = {}) {
   let res;
   try {
     res = await fetch(path, { headers: { Accept: 'application/json' }, ...options });
-  } catch {
+  } catch (err) {
+    if (err && err.name === 'AbortError') throw new ApiError('Cancelled.', -1);
     throw new ApiError(NETWORK_MSG, 0);
   }
   let body = null;
@@ -50,10 +51,12 @@ export function featured() {
   return request('/api/featured');
 }
 
-export function startBuild({ ra, dec, fov, det }) {
-  if (MOCK) return mock.startBuild({ ra, dec, fov, det });
+/** POST /api/build. `signal` (AbortSignal) cancels the wait; the server may finish anyway. */
+export function startBuild({ ra, dec, fov, det }, { signal } = {}) {
+  if (MOCK) return mock.startBuild({ ra, dec, fov, det }, { signal });
   return request('/api/build', {
     method: 'POST',
+    signal,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ ra, dec, fov, det }),
   });
@@ -80,15 +83,27 @@ export async function config() {
   }
 }
 
-/** Fetch a binary file (the float16 data cube) as an ArrayBuffer. */
+const BINARY_TIMEOUT_MS = 60000;
+
+/** Fetch a binary file (the float16 data cube) as an ArrayBuffer; gives up after 60 s instead of hanging. */
 export async function fetchBinary(url) {
   if (MOCK) return mock.fetchBinary(url);
-  let res;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), BINARY_TIMEOUT_MS);
   try {
-    res = await fetch(url);
-  } catch {
-    throw new ApiError(NETWORK_MSG, 0);
+    let res;
+    try {
+      res = await fetch(url, { signal: abort.signal });
+    } catch {
+      throw new ApiError(abort.signal.aborted ? 'The pixel data took too long to download. Please try again.' : NETWORK_MSG, 0);
+    }
+    if (!res.ok) throw new ApiError(`Could not download the pixel data (HTTP ${res.status}).`, res.status);
+    try {
+      return await res.arrayBuffer();
+    } catch {
+      throw new ApiError('The pixel data download was interrupted. Please try again.', 0);
+    }
+  } finally {
+    clearTimeout(timer);
   }
-  if (!res.ok) throw new ApiError(`Could not download the pixel data (HTTP ${res.status}).`, res.status);
-  return res.arrayBuffer();
 }

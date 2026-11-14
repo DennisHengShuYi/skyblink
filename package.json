@@ -1,0 +1,9 @@
+{
+  "name": "skyblink-frontend-tests",
+  "private": true,
+  "type": "module",
+  "description": "No build step: this file only marks frontend/ and tests/js/ as ES modules for `node --test`.",
+  "scripts": {
+    "test": "node --test \"tests/js/*.test.mjs\""
+  }
+}

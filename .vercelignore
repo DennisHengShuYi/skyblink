@@ -6,3 +6,6 @@ featured/
 *.pdf
 docs/
 backend/tests/
+tests/
+package.json
+.github/
