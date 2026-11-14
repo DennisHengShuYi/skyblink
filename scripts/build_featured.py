@@ -59,6 +59,38 @@ FEATURED = [
     },
 ]
 
+# Popular sights (beginner entry points). Kept in sync with frontend/js/sights.js by
+# backend/tests/test_sights_sync.py. Built in one detector each with `--sights`.
+SIGHTS = [
+    {"slug": "orion", "ra": 83.8221, "dec": -5.3911, "fov": 0.1, "det": "D3"},
+    {"slug": "pleiades", "ra": 56.75, "dec": 24.1167, "fov": 0.1, "det": "D1"},
+    {"slug": "crab", "ra": 83.6331, "dec": 22.0145, "fov": 0.1, "det": "D2"},
+    {"slug": "andromeda", "ra": 10.6847, "dec": 41.269, "fov": 0.1, "det": "D2"},
+    {"slug": "whirlpool", "ra": 202.4696, "dec": 47.1952, "fov": 0.1, "det": "D2"},
+    {"slug": "ring", "ra": 283.3962, "dec": 33.0291, "fov": 0.1, "det": "D3"},
+    {"slug": "proxima", "ra": 217.3697, "dec": -62.674, "fov": 0.1, "det": "D2"},
+    {"slug": "alphacen", "ra": 219.8476, "dec": -60.8307, "fov": 0.1, "det": "D4"},
+    {"slug": "galcentre", "ra": 266.4168, "dec": -29.0078, "fov": 0.1, "det": "D4"},
+    {"slug": "betelgeuse", "ra": 88.7929, "dec": 7.4071, "fov": 0.1, "det": "D5"},
+]
+
+
+def build_sights(workers: int) -> None:
+    """Pre-build each popular sight in its one detector, so it opens instantly."""
+    t0 = time.time()
+    failed = []
+    with ThreadPoolExecutor(workers) as pool:
+        futs = {pool.submit(build_view, s["ra"], s["dec"], s["fov"], s["det"], lambda p, m: None, FEATURED_DIR, None): s["slug"]
+                for s in SIGHTS}
+        for f in as_completed(futs):
+            try:
+                m = f.result()
+                log.info("sight %s: %d frames, %d windows (%.0fs)", futs[f], len(m["visits"]), len(m["stacks"]), time.time() - t0)
+            except Exception as exc:
+                failed.append(futs[f])
+                log.error("sight %s failed: %s", futs[f], exc)
+    log.info("sights done in %.0fs; failed: %s", time.time() - t0, failed or "none")
+
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -66,7 +98,12 @@ def main() -> None:
     ap.add_argument("slugs", nargs="*")
     ap.add_argument("--dets", default=",".join(DETECTORS))
     ap.add_argument("--workers", type=int, default=3)
+    ap.add_argument("--sights", action="store_true", help="build the popular sights instead")
     args = ap.parse_args()
+    if args.sights:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        build_sights(args.workers)
+        return
     dets = [d for d in args.dets.split(",") if d in DETECTORS]
     targets = [t for t in FEATURED if not args.slugs or t["slug"] in args.slugs]
 
