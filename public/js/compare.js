@@ -34,6 +34,9 @@ export function referenceUrl(view, survey, size, host = HIPS2FITS[0]) {
  * @param {() => {view: object, frames: object[], mode: string}} ctx.current
  * @param {(view: object) => Promise<object>} ctx.getCube
  * @param {(state: {tool: string, a: number|null, b: number|null}) => void} ctx.onChange
+ * @param {Object<string, object>} [ctx.extraTools] tools owned elsewhere, in one of two shapes:
+ *   {show, stop} (Then & Now: shown when selected, stopped on every tool change) or
+ *   {enter, leave} (Colour: enter resolves to a badge text, leave runs when the user moves off it).
  */
 export function createCompare({ player, current, getCube, onChange = () => {}, extraTools = {} }) {
   let tool = 'animate';
@@ -66,6 +69,7 @@ export function createCompare({ player, current, getCube, onChange = () => {}, e
   function applyTool(t) {
     if (tool !== t) extraTools[tool]?.leave?.();
     tool = t;
+    Object.values(extraTools).forEach((x) => x.stop?.());
     document.querySelectorAll('.tool-panel').forEach((p) => { p.hidden = p.dataset.panel !== t || !p.childElementCount; });
     player.stopBlink();
     player.clearOverride();
@@ -136,9 +140,15 @@ export function createCompare({ player, current, getCube, onChange = () => {}, e
     player.pause();
     if (t === 'deep') await showDeep();
     if (t === 'reference') await showReference();
-    if (extraTools[t]) {
-      const badge = await extraTools[t].enter();
-      if (tool === t && badge) setBadge(badge);
+    if (extraTools[t] && tool === t) {
+      const x = extraTools[t];
+      if (x.show) {
+        $('frame-label').hidden = true;
+        await x.show();
+      } else {
+        const badge = await x.enter();
+        if (tool === t && badge) setBadge(badge);
+      }
     }
   }
 

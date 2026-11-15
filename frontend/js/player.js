@@ -9,6 +9,7 @@ import {
 } from './render.js';
 import { stackVariance, deepVariance } from './photometry.js';
 import { nextIndex } from './frames.js';
+import { FPS_MAX as PLAY_FPS_MAX } from './urlstate.js';
 import { fitViewport, zoomAt, panBy, gridToScreen, screenToGrid } from './viewport.js';
 
 const TARGET_PX = 720;
@@ -37,6 +38,10 @@ export function loadImage(src, { crossOrigin = null } = {}) {
 
 /** Frame → cube plane reference (`v<i>` for a visit, `s<window>` for a stack). */
 export const frameRef = (f) => (Number.isInteger(f.i) ? `v${f.i}` : `s${f.window}`);
+// Overrides that show the deep stack: 'deep' itself, and 'split' (deep stack on the right of a
+// curtain, an older survey picture on the left). Their deep PNG is o.deepImg || o.img.
+const deepish = (o) => Boolean(o) && (o.kind === 'deep' || o.kind === 'split');
+const deepImgOf = (o) => (o.kind === 'split' ? o.deepImg : o.img);
 
 export class Player {
   constructor(canvas, cb = {}) {
@@ -61,6 +66,7 @@ export class Player {
     this.frameImages = null; // optional replacement images per frame (false-colour view)
     this.display = { ...DEFAULT_DISPLAY };
     this.selected = null;
+    this.marks = [];
     this.hoverStar = null;
     this.loadToken = 0;
     this.timer = null;
@@ -101,6 +107,7 @@ export class Player {
       this.vp = fitViewport(view.grid.npix);
       this.selected = null;
     }
+    this.marks = [];
     this.frames = frames;
     this.images = images;
     this.flagImages = new Map();
@@ -160,7 +167,7 @@ export class Player {
   }
 
   setFps(fps) {
-    this.fps = fps;
+    this.fps = Math.min(PLAY_FPS_MAX, Math.max(0.1, Number(fps) || 2)); // flash-safety cap, see urlstate.js
     if (this.playing) this.schedule();
   }
 
@@ -291,14 +298,14 @@ export class Player {
   /** Float plane for the current frame (or the deep stack override), or null before the cube loads. */
   currentPlane() {
     if (!this.cube || !this.view) return null;
-    if (this.override?.kind === 'deep') return planeFor(this.cube, this.view, 'deep');
+    if (deepish(this.override)) return planeFor(this.cube, this.view, 'deep');
     if (this.override) return null;
     return planeFor(this.cube, this.view, frameRef(this.frame));
   }
 
   currentVariance() {
     if (!this.cube) return null;
-    const deep = this.override?.kind === 'deep';
+    const deep = deepish(this.override);
     const f = this.frame;
     const key = deep ? 'deep' : frameRef(f);
     if (!this.varCache.has(key)) {
@@ -328,7 +335,7 @@ export class Player {
     const { stretch, brightness, contrast } = this.display;
     const plane = this.currentPlane();
     if (plane) return planeToValues(plane, this.view.stretch || { lo: 0, hi: 1 }, stretch, brightness, contrast);
-    const img = this.override?.kind === 'deep' ? this.override.img : this.images[this.index];
+    const img = deepish(this.override) ? deepImgOf(this.override) : this.images[this.index];
     if (!img) return null;
     const grey = this.pngGrey(img);
     if (!grey) return null;
@@ -373,11 +380,11 @@ export class Player {
     if (o?.kind === 'reference') return o.img;
     if (o?.kind === 'diff') return this.rgbaCanvas(o.rgba, this.P);
     const smooth = this.display.smooth && !this.playing; // Catmull-Rom only on still frames
-    const key = `${o?.kind === 'deep' ? 'deep' : this.index}|${this.cube ? 'c' : 'p'}|${smooth ? 's' : 'n'}`;
+    const key = `${deepish(o) ? 'deep' : this.index}|${this.cube ? 'c' : 'p'}|${smooth ? 's' : 'n'}`;
     if (this.cache.has(key)) return this.cache.get(key);
     const values = this.frameValues();
     if (!values) {
-      const img = o?.kind === 'deep' ? o.img : this.images[this.index];
+      const img = deepish(o) ? deepImgOf(o) : this.images[this.index];
       return img || null;
     }
     const lut = colormapLut(this.display.cmap);
@@ -420,6 +427,7 @@ export class Player {
       ctx.imageSmoothingEnabled = this.override?.kind === 'reference' || (this.display.smooth && (this.override?.kind === 'diff' || this.playing));
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(base, tl.x, tl.y, span, span);
+      if (this.override?.kind === 'split') this.drawSplit(tl, span);
     } else {
       ctx.fillStyle = 'rgba(232, 236, 248, 0.7)';
       ctx.font = `${Math.round(size / 40)}px system-ui, sans-serif`;
@@ -434,6 +442,64 @@ export class Player {
     this.decorators.forEach((draw) => draw(ctx, this));
     if (this.selected) this.drawSelection();
     this.drawCrosshair();
+    if (this.marks.length) this.drawMarks();
+  }
+
+  /** Curtain: the older picture (o.img) left of `o.at` (0..1 of the field), the deep stack right. */
+  drawSplit(tl, span) {
+    const { ctx } = this;
+    const o = this.override;
+    const cut = tl.x + span * Math.min(1, Math.max(0, o.at));
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(tl.x, tl.y, cut - tl.x, span);
+    ctx.clip();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(o.img, tl.x, tl.y, span, span);
+    ctx.restore();
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 2 * this.unit;
+    ctx.beginPath();
+    ctx.moveTo(cut, Math.max(0, tl.y));
+    ctx.lineTo(cut, Math.min(this.canvas.height, tl.y + span));
+    ctx.stroke();
+  }
+
+  /**
+   * Annotation marks in grid coordinates (pixel centre = integer + 0.5 like everything else):
+   * {kind: 'ring', x, y, r (grid px), color, label?, dashed?} or
+   * {kind: 'arrow', x0, y0, x1, y1, color, label?}. Used by Then & Now, Measure it and the puzzle.
+   */
+  setMarks(marks) {
+    this.marks = Array.isArray(marks) ? marks : [];
+    this.render();
+  }
+
+  drawMarks() {
+    const { ctx } = this;
+    const u = this.unit;
+    const px = this.pixelSize;
+    ctx.font = `${Math.round(13 * u)}px system-ui, sans-serif`;
+    this.marks.forEach((m) => {
+      ctx.strokeStyle = m.color || '#7CFC9A';
+      ctx.fillStyle = m.color || '#7CFC9A';
+      ctx.lineWidth = (m.width || 2) * u;
+      ctx.setLineDash(m.dashed ? [5 * u, 4 * u] : []);
+      if (m.kind === 'arrow') {
+        const a = this.toScreen(m.x0 + 0.5, m.y0 + 0.5);
+        const b = this.toScreen(m.x1 + 0.5, m.y1 + 0.5);
+        drawArrow(ctx, a.x, a.y, b.x, b.y, Math.max(7 * u, px * 0.8));
+        if (m.label) ctx.fillText(m.label, b.x + 6 * u, b.y - 6 * u);
+      } else {
+        const c = this.toScreen(m.x + 0.5, m.y + 0.5);
+        const r = Math.max(7 * u, (m.r || 1.5) * px);
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, r, 0, 2 * Math.PI);
+        ctx.stroke();
+        if (m.label) ctx.fillText(m.label, c.x + r + 4 * u, c.y - r * 0.4);
+      }
+    });
+    ctx.setLineDash([]);
   }
 
   /** Screen position of a grid coordinate (pixel centres are at +0.5). */

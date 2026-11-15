@@ -5,6 +5,17 @@ import * as api from './js/api.js';
 import { readUrlState, writeUrlState, shareUrl, clampFps } from './js/urlstate.js';
 import { Player } from './js/player.js';
 import { createCompare } from './js/compare.js';
+import { createThenNow } from './js/thennow-ui.js';
+import { createMeasure } from './js/measure-ui.js';
+import { createSkyClock } from './js/skyclock-ui.js';
+import { createPuzzleUi } from './js/puzzle-ui.js';
+import { renderHomeExtras } from './js/home-extras.js';
+import { startKiosk } from './js/kiosk.js';
+import { createNavigator } from './js/navigate.js';
+import { openLesson } from './js/lesson.js';
+import { resolveLevel, plainTitle, CALM_FPS, CALM_BLINK_HZ } from './js/simple.js';
+import { bindSimpleBar, storedValue, storeValue } from './js/simple-ui.js';
+import { healthMap, healthLabel } from './js/health.js';
 import { createControls } from './js/controls.js';
 import { createAnalysis } from './js/analysis.js';
 import { createKeyHandler } from './js/keys.js';
@@ -12,7 +23,9 @@ import { loadCube } from './js/cube.js';
 import { rememberView, builtDetectors } from './js/spectrum-data.js';
 import { orderFrames, timePositions, windowStarts } from './js/frames.js';
 import { unproject } from './js/gaia.js';
-import { suggestNames, addRecent } from './js/search.js';
+import { suggestNames, addRecent, friendlyAnswer } from './js/search.js';
+import { renderMoveCard, renderDistanceCard, renderDescribeCard } from './js/movecard.js';
+import { showBuildPreview, createReadyBanner } from './js/deadends.js';
 import { showAladin, setSurvey, drawFootprint, markSelection } from './js/aladin.js';
 import { downloadBlob, canvasPng, recordFrames, videoSupported, fileStem } from './js/exporter.js';
 import { mountBeginner } from './js/beginner.js';
@@ -25,10 +38,15 @@ const POLL_MS = 1500;
 const LIVE_BUILD_MSG = "Fetching SPHEREx images from NASA's archive";
 const BANDS = { D1: '0.75–1.09', D2: '1.10–1.62', D3: '1.63–2.41', D4: '2.42–3.82', D5: '3.83–4.41', D6: '4.42–5.00' };
 const RECENT_KEY = 'skyblink.recent';
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const LETTER_KEYS_KEY = 'skyblink.letterKeys';
+const LEVEL_KEY = 'skyblink.level';
+const CALM_KEY = 'skyblink.calm';
+const prefersReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let state = readUrlState();
+// Calm motion (or the system's reduce-motion setting): no autoplay, slower playback and blink.
+const calmNow = () => prefersReduced || Boolean(state.calm);
 let view = null;
 let frames = [];
 let gen = 0;
@@ -37,10 +55,16 @@ let featuredList = [];
 let restore = state.ra !== null || Boolean(state.target); // apply URL view settings once
 let build = null; // {abort, timer}
 let shownTarget = null; // target name of the view on screen (restored on cancel)
+let background = null; // a live build the visitor walked away from: {snapshot}
+let health = new Map(); // visit i → {level, reasons}: the picture health check
+let afterView = null; // one-shot action once the next view is on screen (puzzle, birthday, remote)
 
 const player = new Player($('canvas'), {
-  onFrame, onPlayState, onHover: (...a) => controls.onHover(...a),
-  onPixel: (p) => { analysis.pick(p, { reveal: false }); beginner.onPixel(p); },
+  onFrame, onPlayState, onPixel: (p) => {
+    if (measure.active) measure.tap(p);
+    else if (puzzle.active) puzzle.tap(p);
+    else { analysis.pick(p, { reveal: false }); beginner.onPixel(p); }
+  }, onHover: (...a) => controls.onHover(...a),
   onSwipe: (d) => { leaveCompare(); player.step(d); },
 });
 const current = () => ({ view, frames, mode: state.mode, frame: player.frame, target: $('view-title').textContent });
@@ -52,10 +76,18 @@ const update = (patch) => {
 const setMode = setupRadioGroup($('mode-group'), 'mode', (m) => changeMode(m));
 const selectSideTab = setupTabs(document.querySelector('.side [role="tablist"]'), onSideTab);
 const controls = createControls(player, { current, update });
-const compare = createCompare({
-  player, current, getCube, onChange: (s) => update(s),
-  extraTools: { colour: { enter: () => beginner.colour.enter(), leave: () => beginner.colour.leave() } },
-});
+const setStageBadge = (text) => {
+  $('stage-badge').hidden = !text;
+  $('stage-badge').textContent = text || '';
+};
+const thenNow = createThenNow({ player, current, setBadge: setStageBadge, calm: () => calmNow() });
+const measure = createMeasure({ player, current, getCube, setBadge: setStageBadge });
+const compare = createCompare({ player, current, getCube, onChange: (s) => update(s), extraTools: {
+  then: thenNow, measure,
+  colour: { enter: () => beginner.colour.enter(), leave: () => beginner.colour.leave() },
+} });
+const skyClock = createSkyClock({ current: () => ({ view, frame: player.frame }) });
+const puzzle = createPuzzleUi({ player, current, compare, open: (slug, det, opts) => openFeatured(slug, det, opts) });
 const analysis = createAnalysis({
   player, current, getCube, showTab: (id) => selectSideTab(id), onJump: jumpToVisit,
   onChange: (p, ap) => update({ px: p ? p.x : null, py: p ? p.y : null, ap }),
@@ -164,6 +196,12 @@ async function search(query) {
   const myGen = ++gen;
   restore = false;
   showError(null);
+  const kind = friendlyAnswer(query);
+  if (kind) {
+    const movers = featuredList.filter((f) => f.kind === kind.suggest);
+    showError(kind.message, null, movers.map((f) => [f.name, () => pickFeatured(f)]));
+    return;
+  }
   showStatus(`Looking up “${query}”…`);
   $('status-cancel').hidden = true;
   try {
@@ -184,16 +222,37 @@ async function search(query) {
   }
 }
 
+
+/** A walked-away build finished; the banner opens it on request. */
+const readyBanner = createReadyBanner({
+  onShow: async ({ view: v, snapshot }) => {
+    restore = false;
+    update({ ...snapshot, frame: 0, px: null, py: null });
+    $('q').value = snapshot.target || '';
+    $('fov').value = String(snapshot.fov);
+    await showView(v, ++gen);
+  },
+});
+
 async function buildAndShow() {
   const myGen = ++gen;
   const { ra, dec, fov, det } = state;
+  const snapshot = { ra, dec, fov, det, target: state.target };
   showError(null);
   showStatus(`${LIVE_BUILD_MSG}…`);
+  showBuildPreview(snapshot, {
+    featured: featuredList, mock: api.MOCK,
+    meanwhile: (f) => { background = { snapshot }; pickFeatured(f); },
+  });
   const signal = startBuildTimer(true);
   try {
     // Hosted (Vercel): one long POST that may return the finished view inline.
     const started = await api.startBuild({ ra, dec, fov, det }, { signal });
-    if (myGen !== gen) return;
+    if (myGen !== gen) {
+      // The visitor chose "Meanwhile, watch…": keep the finished build instead of wasting it.
+      if (started.view && background && background.snapshot === snapshot) { background = null; readyBanner.park(started.view, snapshot); }
+      return;
+    }
     if (started.view) {
       await showView(started.view, myGen);
       return;
@@ -215,11 +274,18 @@ async function buildAndShow() {
     if (myGen !== gen) return;
     await showView(v, myGen);
   } catch (err) {
+    if (background && background.snapshot === snapshot) {
+      background = null;
+      if (err.status !== -1) toast(`Fetching ${snapshot.target || 'that patch'} in the background didn't work. Try it again later.`);
+    }
     if (myGen !== gen || err.status === -1) return;
     restore = false;
     showError(friendly(err, 'building the view'), () => buildAndShow());
   }
 }
+
+/** Health of every single picture: from flags at once, refined with noise once the cube loads. */
+const computeHealth = (v, cube = null) => { health = healthMap(v.visits || [], cube ? (k) => cube.img(k) : null); };
 
 const framesOf = (v, mode) => (v ? (mode === 'visits' ? v.visits : v.stacks) || [] : []);
 
@@ -238,6 +304,7 @@ async function showView(v, myGen) {
   view = v;
   shownTarget = state.target;
   rememberView(v);
+  computeHealth(v);
   $('home').hidden = true;
   $('viewer').hidden = false;
   $('view-title').textContent = state.target || `RA ${v.ra.toFixed(4)}°, Dec ${v.dec.toFixed(4)}°`;
@@ -247,12 +314,25 @@ async function showView(v, myGen) {
   $('open-full').href = shareUrl(state, { embed: false });
   document.title = `${$('view-title').textContent} · SkyBlink`;
   syncDetectors();
+  thenNow.sync(v);
+  measure.sync(v);
+  $('sb-then').hidden = document.querySelector('#tool-group [data-tool="then"]').hidden;
+  $('sb-measure').hidden = document.querySelector('#tool-group [data-tool="measure"]').hidden;
+  if (activeSideTab() === 'tab-year') skyClock.render();
+  renderMoveCard(v, { player, featured: () => featuredList, pick: pickFeatured });
+  renderDistanceCard(v, { player });
+  renderDescribeCard(v, { player, getCube });
   controls.syncStarInputs();
   if (!restore && !samePosition) analysis.reset();
   if (activeSideTab() === 'tab-atlas') loadAtlas();
-  await loadFrames(myGen, !restore);
+  await loadFrames(myGen, !restore && !afterView);
   // Same field, new band: re-measure the selected pixel in this band.
   if (samePosition && analysis.pixel && myGen === gen) analysis.pick(analysis.pixel, { reveal: false });
+  if (afterView && myGen === gen) {
+    const action = afterView;
+    afterView = null;
+    await action(v);
+  }
 }
 
 async function loadFrames(myGen = gen, fresh = false, { visit = null } = {}) {
@@ -262,7 +342,14 @@ async function loadFrames(myGen = gen, fresh = false, { visit = null } = {}) {
     update({ mode });
     setMode(mode);
   }
-  const list = mode === 'visits' ? orderFrames(framesOf(view, mode), state.sort) : framesOf(view, mode);
+  let list = mode === 'visits' ? orderFrames(framesOf(view, mode), state.sort) : framesOf(view, mode);
+  if (mode === 'visits' && state.skip) {
+    const kept = list.filter((f) => health.get(f.i)?.level !== 'poor');
+    if (kept.length >= 2) {
+      if (kept.length < list.length) toast(`Skipping ${list.length - kept.length} poor picture${list.length - kept.length === 1 ? '' : 's'}.`);
+      list = kept;
+    }
+  }
   syncModeUi();
   compare.reset();
   $('stage-loading').hidden = false;
@@ -291,13 +378,18 @@ async function loadFrames(myGen = gen, fresh = false, { visit = null } = {}) {
   onFrame(player.index, player.frame);
   beginner.onFramesLoaded();
   const v = view;
-  getCube(v).then((cube) => { if (view === v) player.setCube(cube); }).catch(() => {
+  getCube(v).then((cube) => {
+    if (view !== v) return;
+    player.setCube(cube);
+    computeHealth(v, cube);
+    onFrame(player.index, player.frame);
+  }).catch(() => {
     // Without the cube the PNG frames still play; differences/spectra explain the failure themselves.
   });
   if (restore) {
     restore = false;
     await applyRestoredState();
-  } else if (!reducedMotion && list.length > 1 && fresh) {
+  } else if (!calmNow() && list.length > 1 && fresh) {
     player.play();
   }
 }
@@ -309,7 +401,7 @@ async function applyRestoredState() {
     analysis.pick({ x: state.px, y: state.py });
   }
   if (state.tool !== 'animate') await compare.select(state.tool, { run: true });
-  else if (!reducedMotion && frames.length > 1 && state.frame === 0) player.play();
+  else if (!calmNow() && frames.length > 1 && state.frame === 0) player.play();
 }
 
 function syncModeUi() {
@@ -323,8 +415,13 @@ function syncModeUi() {
 
 function onFrame(index, frame) {
   if (!frame) return;
-  const title = frameTitle(frame, state.mode, view, index, frames.length || 1);
-  $('frame-label').textContent = title;
+  const title = level === 'simple'
+    ? plainTitle(frame, state.mode, view, index, frames.length || 1)
+    : frameTitle(frame, state.mode, view, index, frames.length || 1);
+  const h = state.mode === 'visits' && Number.isInteger(frame.i) ? health.get(frame.i) : null;
+  $('health-note').hidden = !h || h.level === 'ok';
+  $('health-note').textContent = h && h.level !== 'ok' ? `This picture: ${h.level === 'poor' ? 'poor' : 'use with care'}. ${h.reasons.join('; ')}. It is kept on purpose, so you can judge it yourself.` : '';
+  $('frame-label').textContent = `${title}${healthLabel(h)}`;
   $('scrub').value = String(index);
   $('scrub').setAttribute('aria-valuetext', title);
   setActiveTick($('ticks'), index);
@@ -332,6 +429,7 @@ function onFrame(index, frame) {
   renderMeta($('meta'), { view, frame, mode: state.mode });
   $('canvas').setAttribute('aria-label', `SPHEREx ${view.det} image: ${title}.${player.overlays.stars ? ' Gaia star markers on.' : ''} Click a pixel for its spectrum; scroll or pinch to zoom.`);
   analysis.onFrame();
+  skyClock.onFrame();
   if (!player.playing && !player.blinkPair && state.frame !== index) update({ frame: index });
 }
 
@@ -368,6 +466,7 @@ const activeSideTab = () => document.querySelector('.side [aria-selected="true"]
 function onSideTab(id) {
   if (id === 'tab-atlas') loadAtlas();
   if (id === 'tab-lc') analysis.onFrame();
+  if (id === 'tab-year') skyClock.render();
 }
 
 async function loadAtlas() {
@@ -416,10 +515,16 @@ function syncDetectors() {
   $('det-legend').hidden = ready.size < 2;
 }
 
-function chooseDetector(det) {
+function chooseDetector(det, { confirmed = false } = {}) {
   if (det === state.det) return;
-  if (state.ra !== null && view && !readyDetectors().has(det)
-    && !window.confirm(`Band ${det} isn't built for this position yet. SkyBlink will fetch its images from NASA's archive, which usually takes 1–2 minutes. Continue?`)) return;
+  if (!confirmed && state.ra !== null && view && !readyDetectors().has(det)) {
+    // In-page question instead of a blocking browser dialog; the current view keeps playing.
+    showError(`Band ${det} isn't ready for this patch yet. SkyBlink can fetch its pictures from NASA's archive, which usually takes 1–2 minutes.`, null, [
+      [`Fetch ${det}`, () => { showError(null); chooseDetector(det, { confirmed: true }); }],
+      [`Stay on ${state.det}`, () => showError(null)],
+    ]);
+    return;
+  }
   update({ det });
   syncDetectors();
   if (state.ra !== null) buildAndShow();
@@ -488,6 +593,8 @@ async function saveVideo() {
 
 // ---------- events ----------
 
+let letterKeys = true;
+
 function bindEvents() {
   $('search-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -512,12 +619,16 @@ function bindEvents() {
   $('fps').addEventListener('input', () => {
     const fps = clampFps(Number($('fps').value));
     $('fps-out').textContent = `${fps} fps`;
-    player.setFps(fps);
+    player.setFps(calmNow() ? Math.min(CALM_FPS, fps) : fps);
     update({ fps });
   });
   $('loop-mode').addEventListener('change', (e) => {
     player.setLoopMode(e.target.value);
     update({ loop: e.target.value });
+  });
+  $('skip-poor').addEventListener('change', (e) => {
+    update({ skip: e.target.checked, frame: 0 });
+    if (view) loadFrames(gen, true);
   });
   $('sort').addEventListener('change', (e) => {
     update({ sort: e.target.value, frame: 0 });
@@ -542,8 +653,15 @@ function bindEvents() {
     e.preventDefault();
     goHome();
   });
+  letterKeys = storedValue(LETTER_KEYS_KEY) !== '0';
+  $('keys-letters').checked = letterKeys;
+  $('keys-letters').addEventListener('change', (e) => {
+    letterKeys = e.target.checked;
+    storeValue(LETTER_KEYS_KEY, letterKeys ? '1' : '0');
+  });
   document.addEventListener('keydown', createKeyHandler({
     active: () => Boolean(view) && !$('viewer').hidden && !$('keys-dialog').open,
+    letters: () => letterKeys,
     toggle: () => player.toggle(),
     step: (d) => player.step(d),
     first: () => player.step(-player.index),
@@ -558,6 +676,40 @@ function bindEvents() {
     help: () => $('keys-dialog').showModal(),
     leave: leaveCompare,
   }));
+}
+
+// ---------- simple view and calm motion ----------
+
+let level = 'simple';
+
+function applyLevel(next, { remember = false } = {}) {
+  level = next;
+  document.body.classList.toggle('simple', level === 'simple');
+  $('level-toggle').textContent = level === 'simple' ? 'More tools' : 'Simple view';
+  $('level-toggle').setAttribute('aria-pressed', String(level === 'full'));
+  if (remember) storeValue(LEVEL_KEY, level);
+  update({ level: state.level ? level : null });
+  if (level === 'simple') {
+    if (state.mode !== 'stack') {
+      setMode('stack');
+      changeMode('stack');
+    }
+    const tab = activeSideTab();
+    if (tab && document.getElementById(tab)?.classList.contains('advanced')) selectSideTab('tab-info');
+    if (['diff', 'deep', 'reference'].includes(compare.tool)) compare.reset();
+  }
+  if (view && player.frame) onFrame(player.index, player.frame);
+}
+
+function applyCalm(on, { remember = false } = {}) {
+  state = { ...state, calm: on };
+  $('calm').checked = on;
+  if (remember) storeValue(CALM_KEY, on ? '1' : '0');
+  writeUrlState(state);
+  const fps = on ? Math.min(CALM_FPS, state.fps) : state.fps;
+  player.setFps(fps);
+  player.setBlinkRate(on ? CALM_BLINK_HZ : state.blinkHz);
+  if (on && player.playing) player.pause();
 }
 
 function goHome() {
@@ -575,7 +727,13 @@ function goHome() {
   syncDetectors();
 }
 
+const { openFeatured, openVisit } = createNavigator({
+  featured: () => featuredList, pick: (f) => pickFeatured(f), afterView: (fn) => { afterView = fn; },
+  jumpToVisit: (i) => jumpToVisit(i), pause: () => player.pause(),
+});
+
 function pickFeatured(f) {
+  puzzle.stop();
   restore = false;
   $('q').value = f.name;
   $('fov').value = String(f.fov ?? state.fov);
@@ -611,6 +769,7 @@ function init() {
   player.setBlinkRate(state.blinkHz);
   $('loop-mode').value = state.loop;
   $('sort').value = state.sort;
+  $('skip-poor').checked = state.skip;
   $('blink-rate').value = String(state.blinkHz);
   controls.applyState(state);
   analysis.setAperture(state.ap);
@@ -619,10 +778,27 @@ function init() {
   if (state.target) $('q').value = state.target;
   if (matchMedia('(max-width: 560px)').matches) $('display-panel').open = false;
   bindEvents();
+  $('level-toggle').addEventListener('click', () => applyLevel(level === 'simple' ? 'full' : 'simple', { remember: true }));
+  $('calm').addEventListener('change', (e) => applyCalm(e.target.checked, { remember: true }));
+  bindSimpleBar({ player, compare, frames: () => frames, shareLink: () => shareUrl(state, { embed: false }), leaveCompare });
+  applyLevel(resolveLevel(state.level, storedValue(LEVEL_KEY)));
+  if (state.calm || storedValue(CALM_KEY) === '1') applyCalm(true);
   fillSuggestions();
   if (!state.embed) {
+    renderHomeExtras({ openVisit, startPuzzle: (p) => puzzle.start(p, (featuredList.find((x) => x.slug === p.slug) || {}).name || ''), printLesson: () => openLesson({ featured: featuredList, view: api.view }).catch((e) => toast(e.message)) });
     loadFeatured();
     applyConfig();
+  }
+  if (state.kiosk) {
+    document.body.classList.add('kiosk', 'simple');
+    applyCalm(true);
+    startKiosk({
+      featured: () => featuredList,
+      show: (f) => { update({ mode: 'stack' }); setMode('stack'); pickFeatured(f); },
+      caption: (text) => { $('kiosk-caption').hidden = !text; $('kiosk-caption').textContent = text || ''; },
+      reset: () => { compare.reset(); analysis.reset(); player.setMarks([]); puzzle.stop(); try { localStorage.removeItem(RECENT_KEY); } catch { /* blocked */ } },
+    });
+    return;
   }
   if (state.ra !== null) buildAndShow();
   else if (state.target) search(state.target);

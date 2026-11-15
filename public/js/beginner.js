@@ -35,7 +35,8 @@ export function mountBeginner(ctx) {
   let pulseUntil = 0;
 
   // ---------- rings and pulse ----------
-  player.addDecorator(findsDecorator(() => finds, () => $('ov-finds').checked));
+  // Rings would give away the Spot-the-Change answer, so they step aside during a puzzle.
+  player.addDecorator(findsDecorator(() => finds, () => $('ov-finds').checked && !document.body.classList.contains('puzzling')));
   player.addDecorator((c, p) => {
     const left = pulseUntil - performance.now();
     if (left <= 0) return;

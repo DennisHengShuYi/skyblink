@@ -5,12 +5,17 @@ Usage (from repo root): python scripts/export_static.py
 - copies each featured view (PNGs, cube.bin, manifest.json) to public/data/<key>/
 - adds "siblings" (other detectors at the same position) to every manifest
 - writes backend/skyblink/static_keys.json so the serverless API knows what is pre-built
+- regenerates frontend/calendar.json (featured picture dates for Birthday Sky) first
 """
 from __future__ import annotations
 
 import json
 import shutil
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import build_calendar  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
@@ -26,6 +31,7 @@ def _referenced_files(manifest: dict) -> set[str]:
 
 
 def main() -> None:
+    build_calendar.main()
     if PUBLIC.exists():
         shutil.rmtree(PUBLIC)
     shutil.copytree(FRONTEND, PUBLIC)

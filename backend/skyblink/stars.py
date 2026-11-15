@@ -25,7 +25,7 @@ def _num(s: str) -> float | None:
 def gaia_stars(ra: float, dec: float, radius_deg: float, gmax: float = 19.0) -> list[dict]:
     """Gaia DR3 sources within radius. Empty list (logged) if VizieR is unavailable."""
     adql = (
-        "SELECT TOP {n} source_id, ra, dec, pmra, pmdec, phot_g_mean_mag, parallax, bp_rp FROM gaiadr3.gaia_source "
+        "SELECT TOP {n} source_id, ra, dec, pmra, pmdec, parallax, parallax_over_error, phot_g_mean_mag, bp_rp FROM gaiadr3.gaia_source "
         "WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.6f}, {dec:.6f}, {r:.5f})) "
         "AND phot_g_mean_mag < {g} ORDER BY phot_g_mean_mag"
     ).format(n=MAX_STARS, ra=ra, dec=dec, r=radius_deg, g=gmax)
@@ -39,8 +39,18 @@ def gaia_stars(ra: float, dec: float, radius_deg: float, gmax: float = 19.0) -> 
     except httpx.HTTPError as exc:
         log.warning("Gaia query failed at %.5f %.5f: %s", ra, dec, exc)
         return []
+    return parse_gaia_csv(r.text)
+
+
+def parse_gaia_csv(text: str) -> list[dict]:
+    """Rows of a Gaia TAP CSV answer as star dicts.
+
+    A missing proper motion or parallax (Gaia's 2-parameter solutions) stays None, not 0.0:
+    0.0 would claim "this star does not move", which the overlay and the "nothing moved"
+    card would then repeat to visitors.
+    """
     stars = []
-    for row in csv.DictReader(io.StringIO(r.text)):
+    for row in csv.DictReader(io.StringIO(text)):
         s_ra, s_dec = _num(row.get("ra")), _num(row.get("dec"))
         if s_ra is None or s_dec is None:
             continue
@@ -49,11 +59,12 @@ def gaia_stars(ra: float, dec: float, radius_deg: float, gmax: float = 19.0) -> 
                 "source_id": row.get("source_id", ""),
                 "ra": s_ra,
                 "dec": s_dec,
-                "pmra": _num(row.get("pmra")) or 0.0,
-                "pmdec": _num(row.get("pmdec")) or 0.0,
+                "pmra": _num(row.get("pmra")),
+                "pmdec": _num(row.get("pmdec")),
+                "parallax": _num(row.get("parallax")),
+                "parallax_over_error": _num(row.get("parallax_over_error")),
                 "gmag": _num(row.get("phot_g_mean_mag")),
-                "parallax": _num(row.get("parallax")),  # mas; None when Gaia has no solution
-                "bp_rp": _num(row.get("bp_rp")),  # colour index, mag
+                "bp_rp": _num(row.get("bp_rp")),  # colour index, mag; None when missing
                 "epoch_mjd": GAIA_EPOCH_MJD,
             }
         )

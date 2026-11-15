@@ -15,7 +15,13 @@ export function levenshtein(a, b) {
   return prev[b.length];
 }
 
-const norm = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
+/**
+ * Comparison key for names in any script: lower case, Latin accents dropped (é → e), then
+ * only letters, digits and combining marks kept. Combining marks outside the Latin accent
+ * block stay, because scripts such as Tamil or Devanagari need them to spell anything.
+ */
+export const norm = (s) => String(s).toLowerCase().normalize('NFKD')
+  .replace(/(\p{Script=Latin})\p{M}+/gu, '$1').replace(/[^\p{L}\p{N}\p{M}]/gu, '');
 
 /** Names close to `query` (prefix match or ≤ 30% edits), best first. */
 export function suggestNames(query, names, max = 3) {
@@ -38,4 +44,38 @@ export function addRecent(list, entry, max = 8) {
   const e = String(entry || '').trim();
   if (!e) return list;
   return [e, ...list.filter((x) => x !== e)].slice(0, max);
+}
+
+// Things people type first that SkyBlink can't show as a fixed patch of sky. Each gets an
+// honest one-line answer and, where one exists, a featured view to try instead.
+const NEARBY = {
+  sun: 'The Sun is far too bright: SPHEREx always points well away from it.',
+  moon: "The Moon crosses a SPHEREx-sized patch of sky in minutes, so it never stays in one place to be blinked.",
+  mercury: 'Planets move across the sky every night, so they never stay in one fixed patch.',
+  venus: 'Planets move across the sky every night, so they never stay in one fixed patch.',
+  earth: "That's where SPHEREx is looking from!",
+  mars: 'Planets move across the sky every night, so they never stay in one fixed patch.',
+  jupiter: 'Planets move across the sky every night, so they never stay in one fixed patch.',
+  saturn: 'Planets move across the sky every night, so they never stay in one fixed patch.',
+  uranus: 'Planets move across the sky every night, so they never stay in one fixed patch.',
+  neptune: 'Planets move across the sky every night, so they never stay in one fixed patch.',
+  pluto: 'Pluto moves too: it creeps a little every day, which is how Clyde Tombaugh found it in 1930 by blinking two photographs.',
+  blackhole: "Black holes don't shine on their own, so there is nothing to see in one small patch.",
+  milkyway: 'The Milky Way is the whole band of stars across the sky, far bigger than one SkyBlink patch.',
+  galaxy: 'Galaxies are so far away that nothing in them visibly moves in a human lifetime.',
+};
+const ALIASES = { themoon: 'moon', thesun: 'sun', blackholes: 'blackhole', galaxies: 'galaxy', themilkyway: 'milkyway' };
+
+/**
+ * An honest answer for a solar-system body or a big idea, or null for anything else.
+ * {message, suggest}: suggest says which kind of featured view fits best ('motion' or null).
+ */
+export function friendlyAnswer(query) {
+  const raw = norm(query).replace(/^(planet)/, '');
+  const key = ALIASES[raw] || raw;
+  if (!Object.prototype.hasOwnProperty.call(NEARBY, key)) return null;
+  return {
+    message: `${NEARBY[key]} SkyBlink shows things that change in one fixed patch of sky: try a star that moves instead.`,
+    suggest: 'motion',
+  };
 }

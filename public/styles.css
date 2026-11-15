@@ -307,15 +307,102 @@ body.embed .embed-only { display: inline-flex; min-height: 36px; padding: 0.3rem
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
 
+/* ---------- newcomer features ---------- */
+
+/* Simple view: expert controls step aside behind "More tools". */
+body.simple .advanced { display: none !important; }
+body:not(.simple) .simple-bar { display: none; }
+.level-switch { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.simple-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0; }
+.btn.big { min-height: 48px; padding: 0.6rem 1rem; font-size: 1rem; }
+body.embed .level-switch, body.embed .simple-bar { display: none; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.chip { appearance: none; border: 1px solid var(--border); background: var(--bg-2); color: var(--text); border-radius: 999px; padding: 0.35rem 0.8rem; min-height: 36px; font: inherit; font-size: 0.875rem; cursor: pointer; }
+.chip:hover, .chip:focus-visible { border-color: var(--accent); }
+
+.build-preview { margin: 0.75rem 0 0; display: flex; gap: 0.75rem; align-items: flex-start; flex-wrap: wrap; }
+.build-preview img { width: 160px; height: 160px; border-radius: 8px; border: 1px solid var(--border); background: #000; }
+.build-preview figcaption { flex: 1 1 200px; color: var(--text-dim); font-size: 0.875rem; }
+
+.ready-banner { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; margin: 0 0 1rem; border-color: var(--ok); flex-wrap: wrap; }
+.ready-banner span { flex: 1 1 220px; }
+
+.move-card { border-left: 3px solid var(--ok); background: rgba(110, 231, 168, 0.07); border-radius: 0 8px 8px 0; padding: 0.6rem 0.9rem; margin-bottom: 1rem; }
+.move-card h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+.move-card p { margin: 0 0 0.5rem; font-size: 0.925rem; }
+
+.then-which { font-weight: 600; margin: 0 0 0.5rem; }
+.measure-step { font-weight: 600; }
+.measure-steps .good { color: var(--ok); }
+.measure-steps .warn { color: var(--warn); }
+
+.year-clock { width: 100%; max-width: 260px; display: block; margin: 0.25rem auto; }
+.clock-month { fill: var(--text-dim); font-size: 10px; }
+#year-panel h3 { font-size: 1rem; margin: 1rem 0 0.4rem; }
+#year-panel h3:first-child { margin-top: 0; }
+#year-panel input[type="range"] { width: 100%; }
+.lab-stop { font-weight: 600; margin-bottom: 0.25rem; }
+
+.distance-card { margin-bottom: 1rem; }
+.distance-card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.ruler { position: relative; height: 44px; margin: 0.25rem 10px 0; border-bottom: 2px solid var(--border); }
+.ruler-tick { position: absolute; bottom: -1.4rem; transform: translateX(-50%); font-size: 0.75rem; color: var(--text-dim); }
+.ruler-tick::before { content: ""; position: absolute; left: 50%; top: -0.55rem; height: 0.45rem; border-left: 1px solid var(--border); }
+.ruler-dot { position: absolute; bottom: 6px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 1px solid var(--bg); background: rgba(92, 225, 255, 0.55); padding: 0; cursor: pointer; }
+.ruler-dot.moves { background: var(--ok); width: 16px; height: 16px; margin-left: -8px; bottom: 4px; }
+.ruler-dot:hover, .ruler-dot:focus-visible { outline: 2px solid var(--focus); }
+.ruler-caption { margin: 1.6rem 0 0.4rem; font-size: 0.8rem; color: var(--text-dim); }
+
+.home-extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin: 0 0 1.5rem; }
+.extra-card { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.extra-card h3 { margin: 0; font-size: 1.05rem; }
+.extra-card p { margin: 0; }
+.extra-card > .btn { align-self: flex-start; margin-top: auto; }
+.bd-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.bd-row select { min-height: 44px; }
+.bd-out { font-weight: 600; }
+
+.puzzle-panel { padding: 0.9rem 1.1rem; margin: 0.75rem 0; border-color: var(--focus); }
+.puzzle-panel h3 { margin: 0 0 0.35rem; }
+.puzzle-panel p { margin: 0 0 0.4rem; }
+
+.ir-dialog { max-width: min(560px, calc(100vw - 32px)); color: var(--text); padding: 1.25rem; }
+.ir-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.ir-dialog video { width: 100%; max-width: 360px; aspect-ratio: 4 / 3; background: #000; border-radius: 8px; display: block; margin: 0.5rem 0; transform: scaleX(-1); }
+.ir-ruler { display: grid; grid-template-columns: 2fr 1fr 3fr; gap: 2px; font-size: 0.8rem; margin: 0.75rem 0; }
+.ir-ruler span { padding: 0.35rem 0.4rem; border-radius: 4px; color: var(--accent-ink); }
+.ir-eyes { background: linear-gradient(90deg, #8b5cf6, #3b82f6, #22c55e, #eab308, #ef4444); }
+.ir-remote { background: #ff9f1c; }
+.ir-spherex { background: var(--accent); }
+
+/* During a puzzle, tools that would point at the answer step aside. */
+body.puzzling #sb-then, body.puzzling #sb-measure,
+body.puzzling #tool-group [data-tool="then"], body.puzzling #tool-group [data-tool="measure"],
+body.puzzling #explainer,
+body.puzzling #tab-finds, body.puzzling #tour-start { display: none !important; }
+.describe-card { margin-bottom: 1rem; }
+.describe-card h3, .describe-card h4 { margin: 0.5rem 0 0.35rem; font-size: 1rem; }
+.object-list { padding-left: 1.4rem; margin: 0.25rem 0; font-size: 0.875rem; }
+.object-list li { margin: 0.15rem 0; }
+.health-note { border-left: 3px solid var(--warn); background: rgba(255, 181, 71, 0.08); padding: 0.5rem 0.8rem; border-radius: 0 8px 8px 0; font-size: 0.9rem; margin: 0 0 0.75rem; }
+
+/* Museum mode (?kiosk=1): big, calm, no settings. */
+body.kiosk .search, body.kiosk .level-switch, body.kiosk .share, body.kiosk .settings, body.kiosk .export-row,
+body.kiosk .side, body.kiosk .site-footer, body.kiosk .home-extras, body.kiosk .compare, body.kiosk #sb-share { display: none !important; }
+body.kiosk { font-size: 1.15rem; }
+body.kiosk .viewer-grid { grid-template-columns: 1fr; }
+.kiosk-caption { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 50; background: rgba(7, 11, 24, 0.92); border: 1px solid var(--accent); border-radius: var(--radius); padding: 1rem 1.25rem; font-size: 1.35rem; line-height: 1.4; }
+.move-card .planets-title { margin-top: 0.75rem; }
+
 /* ---------- beginner features: sights, sky picker, finds, object card, tour ---------- */
-.chips { list-style: none; padding: 0; margin: 0.5rem 0 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.chip {
+#sights.chips { list-style: none; padding: 0; margin: 0.5rem 0 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+#sights .chip {
   display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; text-align: left;
   min-height: 44px; max-width: 260px; padding: 0.55rem 0.8rem; cursor: pointer;
   background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius);
 }
-.chip span { color: var(--text-dim); font-size: 0.8rem; }
-.chip:hover, .chip:focus-visible { border-color: var(--accent); }
+#sights .chip span { color: var(--text-dim); font-size: 0.8rem; }
 .sky-picker { padding: 0.75rem; margin: 0 0 1rem; }
 .sky-picker-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .sky-picker-head h3 { margin: 0; }
@@ -350,6 +437,6 @@ body.embed .embed-only { display: inline-flex; min-height: 36px; padding: 0.3rem
 .tour-text { margin: 0.4rem 0 0.8rem; font-size: 1rem; line-height: 1.45; }
 .tour-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 @media (max-width: 560px) {
-  .chip { max-width: 100%; width: 100%; }
+  #sights .chip { max-width: 100%; width: 100%; }
   .tour { left: 16px; right: 16px; width: auto; }
 }

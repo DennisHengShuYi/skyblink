@@ -1,14 +1,18 @@
-"""Refresh only the Gaia star lists of the featured views (no IRSA, no image rebuild).
+"""Refresh the Gaia star lists of the featured views (one ESA Gaia request per position).
 
-Usage (from repo root): python scripts/refresh_featured_stars.py
-Asks ESA Gaia once per featured position, rewrites each manifest's `stars`, then run
-scripts/export_static.py so public/ picks up the change.
+Adds fields that newer code reads (parallax; unknown motions as null instead of 0.0)
+without touching any image. All six bands of a position share one field, so one query
+serves all of them.
+
+    python scripts/refresh_featured_stars.py
+Then run scripts/export_static.py.
 """
 from __future__ import annotations
 
 import json
 import math
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
@@ -19,20 +23,21 @@ from skyblink.stars import gaia_stars  # noqa: E402
 
 
 def main() -> None:
-    manifests = sorted(FEATURED_DIR.glob("*/D[1-6]/manifest.json"))
-    by_position: dict[str, list] = {}
-    updated = 0
-    for path in manifests:
-        m = json.loads(path.read_text(encoding="utf-8"))
-        pos = path.parent.parent.name
-        if pos not in by_position:  # one Gaia query per position, shared by its detectors
-            by_position[pos] = gaia_stars(m["ra"], m["dec"], m["fov"] * math.sqrt(2) / 2)
-        if not by_position[pos] and m.get("stars"):
-            print(f"{pos}: Gaia returned nothing; keeping the existing star list")
+    by_position: dict[str, list[Path]] = {}
+    for m in sorted(FEATURED_DIR.glob("*/D[1-6]/manifest.json")):
+        by_position.setdefault(m.parent.parent.name, []).append(m)
+    for hash_, manifests in by_position.items():
+        first = json.loads(manifests[0].read_text(encoding="utf-8"))
+        stars = gaia_stars(first["ra"], first["dec"], first["fov"] * math.sqrt(2) / 2)
+        if not stars:
+            print(f"{hash_}: Gaia returned nothing; left unchanged", file=sys.stderr)
             continue
-        storage.atomic_write(path, json.dumps({**m, "stars": by_position[pos]}).encode("utf-8"))
-        updated += 1
-    print(f"updated {updated} manifests from {len(by_position)} Gaia queries")
+        for m in manifests:
+            manifest = json.loads(m.read_text(encoding="utf-8"))
+            storage.atomic_write(m, json.dumps({**manifest, "stars": stars}).encode("utf-8"))
+        with_plx = sum(1 for s in stars if s["parallax"] is not None)
+        print(f"{hash_}: {len(stars)} stars ({with_plx} with parallax) -> {len(manifests)} manifests", file=sys.stderr)
+        time.sleep(2)  # be gentle with ESA
 
 
 if __name__ == "__main__":

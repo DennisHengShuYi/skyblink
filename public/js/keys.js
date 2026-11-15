@@ -4,7 +4,8 @@ const TYPING = ['INPUT', 'SELECT', 'TEXTAREA'];
 
 /**
  * @param {object} a  actions: active(), toggle(), step(d), first(), last(), go(i), zoom(f), fit(),
- *   tool(name), blink(), diff(), stars(), help(), leave()
+ *   tool(name), blink(), diff(), stars(), help(), leave(); optional letters() → false turns
+ *   off every single-character shortcut (WCAG 2.1.4), leaving Space, arrows, Home and End.
  */
 export function createKeyHandler(a) {
   return function onKey(e) {
@@ -22,6 +23,8 @@ export function createKeyHandler(a) {
       return;
     }
     if (typing) return;
+    const lettersOn = typeof a.letters === 'function' ? a.letters() : true;
+    if (k.length === 1 && !lettersOn) return;
     if ((k === 'ArrowLeft' || k === 'ArrowRight') && !widget) {
       e.preventDefault();
       a.leave();
