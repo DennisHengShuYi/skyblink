@@ -7,10 +7,14 @@ const MIN_PARALLAX_MAS = 0.2; // below this Gaia distances are too uncertain to 
 const MOON_WIDTH_ARCSEC = 1865;
 const KM_S_PER_AU_YR = 4.74;
 const MIN_PM_ARCSEC = 0.02;
+const MIN_PARALLAX_SNR = 5; // parallax_over_error below this is too noisy to judge a star's size
 const THIS_YEAR = 2026;
 const LOOKBACK_MAX_LY = 500;
 
-export const NOT_IN_GAIA = "Not in SkyBlink's Gaia star list for this field — it may be very cold, very faint, or hidden behind dust. Brown dwarfs look like this.";
+export const NOT_IN_GAIA = "Not in SkyBlink's Gaia star list for this field. With one view we can't tell what it is: it could be very cold, very faint or hidden behind dust.";
+// Only for a spot that measurably moved: slow-moving, very red objects not seen by Gaia are often brown dwarfs.
+export const NOT_IN_GAIA_MOVER = `${NOT_IN_GAIA} Brown dwarfs look like this.`;
+const STILL_GAIA = 'Gaia lists a star here that is not moving, so this may be a different object right beside it, or glare. A candidate worth a closer look.';
 const EMPTY_SNR = 5;
 
 /**
@@ -18,7 +22,9 @@ const EMPTY_SNR = 5;
  * pixel (no data yet, or a Difference/Reference view), empty sky, or an uncatalogued source.
  */
 export function objectHeadline({ mover, snr }) {
-  if (mover) return { title: `Moving object — about ${Number(mover.arcsecPerYr).toFixed(1)}″ a year`, body: NOT_IN_GAIA };
+  if (mover) {
+    return { title: `Moving object — about ${Number(mover.arcsecPerYr).toFixed(1)}″ a year`, body: mover.stillGaia ? STILL_GAIA : NOT_IN_GAIA_MOVER };
+  }
   if (snr === null || !Number.isFinite(snr)) {
     return { title: "Can't measure here in this view", body: 'Switch back to the animation and click again to read this spot.' };
   }
@@ -29,9 +35,11 @@ export function objectHeadline({ mover, snr }) {
 const usable = (plx) => Number.isFinite(plx) && plx > 0;
 
 /** Rough star type from colour and (when parallax allows) absolute brightness. Null without colour. */
-export function starType({ gmag, bp_rp: colour, parallax }) {
+export function starType({ gmag, bp_rp: colour, parallax, parallax_over_error: parallaxSnr }) {
   if (!Number.isFinite(colour)) return null;
-  const absG = usable(parallax) && Number.isFinite(gmag) ? gmag + 5 * Math.log10(parallax / 100) : null;
+  // A parallax that is mostly noise would put a distant dwarf among the giants: use colour alone.
+  const reliable = !(Number.isFinite(parallaxSnr) && parallaxSnr < MIN_PARALLAX_SNR);
+  const absG = reliable && usable(parallax) && Number.isFinite(gmag) ? gmag + 5 * Math.log10(parallax / 100) : null;
   const t = (label, blurb) => ({ label, blurb });
   if (colour < 0.3) return t('Hot blue star', 'Much hotter than the Sun, glowing blue-white.');
   if (absG !== null && absG > 10 && colour < 1.0) return t('White dwarf', 'The small, hot leftover core of a star like the Sun.');
@@ -88,4 +96,11 @@ export function spectrumWords(points) {
   if (long > 0 && short / long > 2) return 'Brighter at short wavelengths — a sign it is hot.';
   if (short <= 0 && long > 0) return 'Much brighter at long infrared wavelengths — a sign it is cool (or dusty).';
   return 'Similar brightness across infrared colours.';
+}
+
+/** Label for the card's opt-in button that downloads the other bands; null when there are none. */
+export function readColoursLabel(count, megabytesEach) {
+  if (!(count >= 1)) return null;
+  const mb = Math.max(1, Math.round(count * (Number(megabytesEach) || 0)));
+  return `Read its infrared colours (about ${mb} MB)`;
 }

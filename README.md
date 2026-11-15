@@ -36,7 +36,7 @@ Type a name or sky coordinates (RA/Dec) and SkyBlink plays every SPHEREx image o
 SkyBlink is built for people who have never touched astronomy data:
 
 - **No coordinates needed.** Ten popular sights (Orion Nebula, Pleiades, Proxima Centauri and others) are one click away and pre-built, so they open instantly. There's also a sky map where you can click anywhere to look there.
-- **"Something moved here!"** Every view is scanned automatically. Numbered rings mark anything that moved or changed brightness between surveys, and the **Finds** tab explains each one in plain words, for example "Known star, moving 10.0″ a year", "Got 69% fainter" or "Moved — not in Gaia's catalogue". These are always labelled *candidates*, never discoveries. Clicking a find blinks the two frames that show the change best.
+- **"Something moved here!"** Every view is scanned automatically. Numbered rings mark anything that moved or changed brightness between surveys, and the **Finds** tab explains each one in plain words, for example "Known star, moving 10.0″ a year", "Got 52% fainter" or "Moved — not in Gaia's catalogue". These are always labelled *candidates*, never discoveries. Clicking a find blinks the two frames that show the change best. Very bright (saturated) stars such as R Draconis are not checked for brightness changes, because their cores are clipped; use the Light curve tab for those. When two survey windows differ in mean wavelength by more than 3%, a brightness change is reported without a percentage, since it may be colour rather than the star.
 - **"What am I looking at?"** Click anything and a card explains it:
   - what kind of star it is (from Gaia's colour and distance);
   - how far away it is, and when its light left;

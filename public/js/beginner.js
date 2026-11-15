@@ -7,15 +7,15 @@ import { detectFinds, saturationMask } from './detect.js';
 import { renderFinds, findsDecorator } from './finds-ui.js';
 import { revealTabFor } from './finds-text.js';
 import { renderObjectCard } from './objectcard.js';
-import { spectrumWords } from './describe.js';
+import { spectrumWords, readColoursLabel } from './describe.js';
 import { loadColour, COLOUR_DETS } from './colour.js';
-import { detectorViews, gatherSpectrum, rememberView } from './spectrum-data.js';
+import { detectorViews, gatherSpectrum, rememberView, extraBands, cubeMegabytes } from './spectrum-data.js';
 import { SIGHTS } from './sights.js';
 import { pickOnSky } from './aladin.js';
-import { startTour } from './tour.js';
+import { startTour, closeTour } from './tour.js';
 import { TOURS } from './tours.js';
 import { makeGif, makeCard, shareOrDownload, fileName } from './share.js';
-import { toNotes, describeSound, lightcurve, spectrumSeries, play } from './sonify.js';
+import { toNotes, describeSound, lightcurve, spectrumSeries, play, soundAction } from './sonify.js';
 import { shareUrl } from './urlstate.js';
 
 const POLL_MS = 1500;
@@ -33,6 +33,7 @@ export function mountBeginner(ctx) {
   let colourFrames = null;
   let sound = null;
   let pulseUntil = 0;
+  let tourKey = null; // view the open tour belongs to
 
   // ---------- rings and pulse ----------
   // Rings would give away the Spot-the-Change answer, so they step aside during a puzzle.
@@ -60,38 +61,46 @@ export function mountBeginner(ctx) {
   }
 
   // ---------- sound ----------
-  function hear(values, label, textEl) {
-    if (sound) {
-      sound.stop();
-      sound = null;
-      textEl.textContent = '';
-      return;
-    }
+  function stopSound() {
+    if (!sound) return;
+    clearTimeout(sound.timer);
+    sound.handle.stop();
+    sound.textEl.textContent = '';
+    sound = null;
+  }
+
+  // One sound at a time: the same button stops it, another button switches to its own sound.
+  function hear(values, label, textEl, owner) {
+    const action = soundAction(sound, owner);
+    stopSound();
+    if (action === 'toggle-off') return;
     const words = `Sound: ${label} ${describeSound(values)}.`;
     textEl.textContent = words;
-    sound = play(toNotes(values));
-    if (!sound) {
+    const handle = play(toNotes(values));
+    if (!handle) {
       textEl.textContent = `${words} (Sound isn't available in this browser.)`;
       return;
     }
-    setTimeout(() => { sound = null; }, sound.durationMs + 400);
+    const mine = { handle, textEl, owner, timer: null };
+    mine.timer = setTimeout(() => { if (sound === mine) sound = null; }, handle.durationMs + 400);
+    sound = mine;
   }
 
-  async function hearBrightness(pixel, textEl) {
+  async function hearBrightness(pixel, textEl, owner) {
     const { view } = ctx.current();
     try {
       const cube = await ctx.getCube(view);
-      hear(lightcurve(cube, view, pixel.x, pixel.y), 'its brightness over time', textEl);
+      hear(lightcurve(cube, view, pixel.x, pixel.y), 'its brightness over time', textEl, owner);
     } catch (err) {
       textEl.textContent = err.message || 'No pixel data for sound.';
     }
   }
 
-  async function hearSpectrum(pixel, textEl) {
+  async function hearSpectrum(pixel, textEl, owner) {
     const { view } = ctx.current();
     try {
       const { points } = await gatherSpectrum(view, pixel.x, pixel.y, { allBands: true });
-      hear(spectrumSeries(points), 'from short to long wavelength, its brightness', textEl);
+      hear(spectrumSeries(points), 'from short to long wavelength, its brightness', textEl, owner);
     } catch (err) {
       textEl.textContent = err.message || 'No spectrum for sound.';
     }
@@ -113,9 +122,14 @@ export function mountBeginner(ctx) {
       value: player.valueAt(pixel.x, pixel.y),
       caption: f && atCentre ? f.caption : null,
       untrackedMover: finds.find((m) => m.kind === 'moving' && !m.gaia && Math.hypot(m.x - pixel.x, m.y - pixel.y) <= 2) || null,
-      spectrumWords: gatherSpectrum(view, pixel.x, pixel.y, { allBands: true }).then((r) => spectrumWords(r.points)),
-      onHearBrightness: (t) => hearBrightness(pixel, t),
-      onHearSpectrum: (t) => hearSpectrum(pixel, t),
+      // Only bands already loaded; the other bands download when the visitor asks (card button).
+      spectrumWords: gatherSpectrum(view, pixel.x, pixel.y, { allBands: false }).then((r) => spectrumWords(r.points)),
+      colours: {
+        label: readColoursLabel(extraBands(view).length, cubeMegabytes(view)),
+        load: () => gatherSpectrum(view, pixel.x, pixel.y, { allBands: true }).then((r) => spectrumWords(r.points)),
+      },
+      onHearBrightness: (t) => hearBrightness(pixel, t, 'card-brightness'),
+      onHearSpectrum: (t) => hearSpectrum(pixel, t, 'card-spectrum'),
       onShowSpectrum: () => ctx.selectSideTab('tab-spec'),
     });
     const tab = revealTabFor(document.querySelector('.side [aria-selected="true"]')?.id);
@@ -153,7 +167,7 @@ export function mountBeginner(ctx) {
         onPixel(pixel);
         await ctx.compare.pair('blink', f.from, f.to);
       },
-      onHear: (f) => hearBrightness({ x: Math.round(f.x), y: Math.round(f.y) }, $('finds-sound')),
+      onHear: (f) => hearBrightness({ x: Math.round(f.x), y: Math.round(f.y) }, $('finds-sound'), `find-${f.id}`),
     });
     $('finds-count').textContent = finds.length ? `(${finds.length})` : '';
     player.render();
@@ -205,8 +219,10 @@ export function mountBeginner(ctx) {
       }
       colourFrames = result.frames;
       player.useImages(colourFrames);
-      $('colour-msg').textContent = 'Hot stars look blue-white; cold brown dwarfs and dusty objects glow red.';
-      if (!player.playing && player.frames.length > 1) player.play();
+      $('colour-msg').textContent = ['Hot stars look blue-white; cold brown dwarfs and dusty objects glow red.', result.notes]
+        .filter(Boolean).join(' ');
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!reduced && !player.playing && player.frames.length > 1) player.play();
       return `Colour: ${COLOUR_DETS.b} blue · ${COLOUR_DETS.g} green · ${COLOUR_DETS.r} red`;
     } catch (err) {
       $('colour-msg').textContent = err.message || "The colour picture couldn't be made.";
@@ -245,6 +261,7 @@ export function mountBeginner(ctx) {
   $('tour-start').addEventListener('click', () => {
     const f = featuredFor(ctx.current().view);
     if (!f) return;
+    tourKey = ctx.current().view?.key;
     startTour(f.slug, {
       player, compare: ctx.compare, ensureStacks: ctx.ensureStacks, selectSideTab: ctx.selectSideTab, pulse,
       setGaia: (on) => { $('ov-stars').checked = on; $('ov-stars').dispatchEvent(new Event('change')); },
@@ -280,7 +297,7 @@ export function mountBeginner(ctx) {
       toast('Click a pixel first, then listen to its spectrum.');
       return;
     }
-    hearSpectrum(p, $('spec-sound'));
+    hearSpectrum(p, $('spec-sound'), 'spectrum-tab');
   });
 
   return {
@@ -288,14 +305,18 @@ export function mountBeginner(ctx) {
     /** After frames load: finds (once per view), tour button, colour state reset. */
     onFramesLoaded() {
       const { view } = ctx.current();
+      if (tourKey && view?.key !== tourKey) { // a different view: the tour's steps no longer apply
+        closeTour();
+        tourKey = null;
+      }
       const f = featuredFor(view);
       $('tour-start').hidden = !(f && TOURS[f.slug]);
       runFinds();
     },
     onHome() {
-      $('tour').hidden = true;
-      if (sound) sound.stop();
-      sound = null;
+      closeTour();
+      tourKey = null;
+      stopSound();
     },
     colour: { enter: colourEnter, leave: colourLeave },
     get finds() {

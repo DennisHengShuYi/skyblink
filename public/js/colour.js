@@ -1,8 +1,11 @@
 // False-colour view: D1 → blue, D3 → green, D6 → red, from each detector's float cube.
 // Each channel keeps that detector's own fixed stretch for every frame (the colour form of
 // "one shared stretch per view"), so colour frames stay comparable through the animation.
+import { robustStats } from './detect.js';
+
 export const COLOUR_DETS = Object.freeze({ r: 'D6', g: 'D3', b: 'D1' });
 const MATCH_MAX_DAYS = 60;
+const NOISY_FACTOR = 1.5; // a window noisier than this × the median noise is called out
 
 /** For each reference MJD, the index of the nearest other MJD within maxDays (else null). */
 export function matchByDate(refMjds, otherMjds, maxDays = MATCH_MAX_DAYS) {
@@ -79,21 +82,57 @@ export function colourCanvas(planes, stretches, P) {
 }
 
 /**
- * Colour frames aligned with `view.stacks` plus a colour deep stack, or {missing: [dets]}
- * when D1/D3/D6 aren't all available. `detectorList` is [{det, view: Promise<view>}] for this
- * position (current view, this session's builds and siblings — see spectrum-data.js).
+ * Which windows of the colour animation are approximate. `matched` is {r,g,b}: per reference
+ * window, the index of the matching stack in that channel or null. `sigmas` is each window's
+ * relative noise (1 = typical). Noise is only compared with three or more windows.
+ */
+export function windowNotes({ matched, sigmas }) {
+  const n = sigmas.length;
+  const unmatched = [];
+  for (let k = 0; k < n; k += 1) {
+    if (Object.values(matched).some((m) => m[k] === null)) unmatched.push(k);
+  }
+  const noisy = [];
+  if (n >= 3) {
+    const sorted = [...sigmas].filter(Number.isFinite).sort((a, b) => a - b);
+    const mid = sorted.length >> 1;
+    const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    sigmas.forEach((sg, k) => { if (sg > NOISY_FACTOR * median) noisy.push(k); });
+  }
+  return { unmatched, noisy };
+}
+
+const windowList = (ks) => `Window${ks.length > 1 ? 's' : ''} ${ks.map((k) => k + 1).join(', ')}`;
+
+/** One sentence for the colour panel about approximate windows; null when there is nothing to say. */
+export function colourNote({ unmatched, noisy }) {
+  const parts = [];
+  if (unmatched.length) {
+    parts.push(`${windowList(unmatched)} had no matching picture in every band, so ${unmatched.length > 1 ? 'they show' : 'it shows'} the deep stack.`);
+  }
+  if (noisy.length) parts.push(`${windowList(noisy)} ${noisy.length > 1 ? 'are' : 'is'} noisier than the others.`);
+  return parts.length ? parts.join(' ') : null;
+}
+
+/**
+ * Colour frames aligned with `view.stacks`, a colour deep stack and `notes` about approximate
+ * windows, or {missing: [dets]} when D1/D3/D6 aren't all available or one fails to load.
+ * `detectorList` is [{det, view: Promise<view>}] for this position (current view, this
+ * session's builds and siblings — see spectrum-data.js).
  */
 export async function loadColour(view, detectorList) {
   const wanted = Object.values(COLOUR_DETS);
   const sources = new Map(detectorList.map((s) => [s.det, s.view]));
   const missing = wanted.filter((d) => !sources.has(d));
   if (missing.length) return { missing };
-  const { loadCube } = await import('./cube.js'); // browser-only (cube.js → api.js reads location)
-  const channels = {};
-  await Promise.all(Object.entries(COLOUR_DETS).map(async ([ch, det]) => {
+  const settled = await Promise.allSettled(Object.entries(COLOUR_DETS).map(async ([ch, det]) => {
+    const { loadCube } = await import('./cube.js'); // browser-only (cube.js → api.js reads location)
     const v = await sources.get(det);
-    channels[ch] = { view: v, cube: await loadCube(v) };
+    return [ch, { view: v, cube: await loadCube(v) }];
   }));
+  const failed = wanted.filter((_, i) => settled[i].status === 'rejected');
+  if (failed.length) return { missing: failed };
+  const channels = Object.fromEntries(settled.map((r) => r.value));
   const P = channels.r.cube.P;
   if (channels.g.cube.P !== P || channels.b.cube.P !== P) throw new Error('These detectors were built on different grids.');
   // Balanced per-channel scales (fixed for every frame of the colour animation).
@@ -111,5 +150,18 @@ export async function loadColour(view, detectorList) {
     { r: planeFor('r', k), g: planeFor('g', k), b: planeFor('b', k) }, stretches, P));
   const deep = colourCanvas(
     { r: channels.r.cube.deep(), g: channels.g.cube.deep(), b: channels.b.cube.deep() }, stretches, P);
-  return { frames, deep };
+  const notes = colourNote(windowNotes({ matched, sigmas: relativeNoise(refMjds.length, planeFor) }));
+  return { frames, deep, notes };
+}
+
+/** Per window: the worst channel noise relative to that channel's median across windows. */
+function relativeNoise(n, planeFor) {
+  const rel = new Array(n).fill(0);
+  ['r', 'g', 'b'].forEach((ch) => {
+    const sig = Array.from({ length: n }, (_, k) => robustStats(planeFor(ch, k)).sigma);
+    const sorted = [...sig].filter(Number.isFinite).sort((a, b) => a - b);
+    const median = sorted.length ? sorted[sorted.length >> 1] : NaN;
+    sig.forEach((sg, k) => { if (median > 0 && Number.isFinite(sg)) rel[k] = Math.max(rel[k], sg / median); });
+  });
+  return rel;
 }

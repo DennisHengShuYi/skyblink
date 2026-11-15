@@ -125,7 +125,13 @@ export function setSurvey(aladin, survey) {
  * Full-sky picker: show an all-sky survey and report the position the user clicks.
  * onPick({ra, dec}) fires once per click (degrees). Returns the widget.
  */
+let pickerAladin = null; // one map for the page's lifetime: reopening reuses it
+let pickerContainer = null;
+let pickerCallback = () => {};
+
 export async function pickOnSky(container, { ra = 83.82, dec = -5.39, fov = 60 } = {}, onPick = () => {}) {
+  pickerCallback = onPick; // the single click listener below always calls the latest callback
+  if (pickerAladin && pickerContainer === container) return pickerAladin;
   const A = await loadScript();
   container.replaceChildren();
   const aladin = A.aladin(container, {
@@ -138,7 +144,9 @@ export async function pickOnSky(container, { ra = 83.82, dec = -5.39, fov = 60 }
       const w = aladin.pix2world(e.x, e.y);
       if (w) pos = { ra: w[0], dec: w[1] };
     }
-    if (pos) onPick({ ra: ((pos.ra % 360) + 360) % 360, dec: pos.dec });
+    if (pos) pickerCallback({ ra: ((pos.ra % 360) + 360) % 360, dec: pos.dec });
   });
+  pickerAladin = aladin;
+  pickerContainer = container;
   return aladin;
 }

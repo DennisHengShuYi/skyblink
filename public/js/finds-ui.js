@@ -1,18 +1,13 @@
 // Finds tab and the numbered rings on the image. Wording lives in finds-text.js.
 import { el } from './ui.js';
-import { describeFind } from './finds-text.js';
+import { describeFind, emptyFindsText } from './finds-text.js';
 
 const RING_COLOURS = { moving: '#5ce1ff', variable: '#ffd166' };
 
 /** Fill the Finds list. `onPick(find)` and `onHear(find)` run on the entry's buttons. */
 export function renderFinds(listEl, finds, view, { onPick, onHear }) {
-  const windows = (view?.stacks || []).length;
-  if (windows < 2) {
-    listEl.replaceChildren(el('li', { class: 'hint' }, 'Finds need at least two survey windows.'));
-    return;
-  }
   if (!finds.length) {
-    listEl.replaceChildren(el('li', { class: 'hint' }, 'Nothing obviously moved or changed brightness here.'));
+    listEl.replaceChildren(el('li', { class: 'hint' }, emptyFindsText(view)));
     return;
   }
   listEl.replaceChildren(...finds.map((f) => {
