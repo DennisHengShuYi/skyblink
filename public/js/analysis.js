@@ -113,7 +113,53 @@ export function createAnalysis({ player, current, getCube, showTab, onJump, onCh
     }));
   }
 
+  // ---------- "Watch SPHEREx paint a rainbow": replay the spectrum in time order ----------
+  let replayTimer = null;
+
+  function stopReplay() {
+    clearInterval(replayTimer);
+    replayTimer = null;
+    $('spec-replay').textContent = 'Watch it being collected';
+  }
+
+  function replay() {
+    if (replayTimer) {
+      stopReplay();
+      refresh();
+      return;
+    }
+    const all = specPts.filter((p) => Number.isFinite(p.mjd) && Number.isFinite(p.flux)).sort((a, b) => a.mjd - b.mjd);
+    if (all.length < 2) {
+      toast('Click a pixel first, so there is a spectrum to replay.');
+      return;
+    }
+    const lo = Math.min(...all.map((p) => p.flux - (Number.isFinite(p.err) ? p.err : 0)));
+    const hi = Math.max(...all.map((p) => p.flux + (Number.isFinite(p.err) ? p.err : 0)));
+    const draw = (pts) => drawSpectrum($('spec-canvas'), pts, {
+      unit: unit(), colorBy: $('spec-color').value, logY: $('spec-log').checked, yFixed: [lo, hi],
+    });
+    const fmt = (mjd) => new Date((mjd - 40587) * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    let k = 0;
+    $('spec-replay').textContent = 'Stop';
+    replayTimer = setInterval(() => {
+      k += 1;
+      // Pictures taken at the same moment in several bands (SPHEREx's six detectors shoot together) arrive together.
+      while (k < all.length && Math.abs(all[k].mjd - all[k - 1].mjd) < 0.001) k += 1;
+      draw(all.slice(0, k));
+      $('spec-hint').textContent = `${fmt(all[k - 1].mjd)} · ${k} of ${all.length} measurements`;
+      if (k >= all.length) {
+        stopReplay();
+        const months = Math.max(1, Math.round((all[all.length - 1].mjd - all[0].mjd) / 30.44));
+        const bands = new Set(all.map((p) => p.det)).size;
+        $('spec-hint').textContent = `${all.length} measurements over ${months} months${bands > 1 ? ` in ${bands} bands (dots that appear together are different colours caught in one snapshot)` : ''}. SPHEREx builds a spectrum one colour at a time, as this patch slides across its rainbow filter from visit to visit.`;
+      }
+    }, 140);
+  }
+
+  $('spec-replay').addEventListener('click', replay);
+
   function pick(p, { reveal = true } = {}) {
+    stopReplay();
     pixel = p;
     player.select(p ? { ...p, r: ap } : null);
     onChange(pixel, ap);

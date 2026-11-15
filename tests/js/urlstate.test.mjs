@@ -50,3 +50,11 @@ test('default settings are left out of the share URL', () => {
   ['frame=', 'tool=', 'cmap=', 'stretch=', 'bright=', 'px=', 'loop=', 'blink='].forEach((k) => assert.ok(!q.includes(k), k));
   assert.equal(DEFAULTS.fov, 0.1);
 });
+
+test('playback speed is capped at 6 fps (never more than 3 flashes a second)', async () => {
+  const { readUrlState, clampFps, FPS_MAX } = await import('../../frontend/js/urlstate.js');
+  assert.equal(FPS_MAX, 6);
+  assert.equal(clampFps(12), 6);
+  assert.equal(readUrlState('?ra=1&dec=2&fps=12').fps, 6);
+  assert.equal(readUrlState('?ra=1&dec=2&fps=3').fps, 3);
+});

@@ -34,8 +34,10 @@ export function referenceUrl(view, survey, size, host = HIPS2FITS[0]) {
  * @param {() => {view: object, frames: object[], mode: string}} ctx.current
  * @param {(view: object) => Promise<object>} ctx.getCube
  * @param {(state: {tool: string, a: number|null, b: number|null}) => void} ctx.onChange
+ * @param {Object<string, {show: () => Promise<void>, stop: () => void}>} [ctx.extraTools] tools owned
+ *   elsewhere (Then & Now): shown when selected, stopped when the user leaves them.
  */
-export function createCompare({ player, current, getCube, onChange = () => {} }) {
+export function createCompare({ player, current, getCube, onChange = () => {}, extraTools = {} }) {
   let tool = 'animate';
   const setTool = setupRadioGroup($('tool-group'), 'tool', (t) => selectTool(t));
   const refCache = new Map();
@@ -65,6 +67,7 @@ export function createCompare({ player, current, getCube, onChange = () => {} })
 
   function applyTool(t) {
     tool = t;
+    Object.values(extraTools).forEach((x) => x.stop());
     document.querySelectorAll('.tool-panel').forEach((p) => { p.hidden = p.dataset.panel !== t || !p.childElementCount; });
     player.stopBlink();
     player.clearOverride();
@@ -135,6 +138,10 @@ export function createCompare({ player, current, getCube, onChange = () => {} })
     player.pause();
     if (t === 'deep') await showDeep();
     if (t === 'reference') await showReference();
+    if (extraTools[t] && tool === t) {
+      $('frame-label').hidden = true;
+      await extraTools[t].show();
+    }
   }
 
   function startBlink() {

@@ -62,3 +62,36 @@ test('csv escapes quotes, commas and newlines', () => {
   const csv = toCsv(['a', 'b'], [[1, 'x,y'], ['say "hi"', null]]);
   assert.equal(csv, 'a,b\n1,"x,y"\n"say ""hi""",\n');
 });
+
+test('search names work in any script', async () => {
+  const { norm, suggestNames: sn } = await import('../../frontend/js/search.js');
+  assert.equal(norm('Épsilon Indi'), 'epsilonindi');
+  assert.notEqual(norm('திருவாதிரை'), '');           // Tamil keeps its vowel signs
+  assert.equal(norm('参宿四'), '参宿四');
+  assert.deepEqual(sn('参宿', ['参宿四', 'Barnard']), ['参宿四']);
+});
+
+test('planets and big ideas get a kind answer, real names do not', async () => {
+  const { friendlyAnswer } = await import('../../frontend/js/search.js');
+  assert.match(friendlyAnswer('Jupiter').message, /move/);
+  assert.ok(friendlyAnswer('the Moon'));
+  assert.ok(friendlyAnswer('black hole'));
+  assert.equal(friendlyAnswer("Barnard's Star"), null);
+  assert.equal(friendlyAnswer('133.79 -7.24'), null);
+});
+
+test('single-key shortcuts can be switched off (WCAG 2.1.4)', async () => {
+  const { createKeyHandler } = await import('../../frontend/js/keys.js');
+  const calls = [];
+  let on = true;
+  const h = createKeyHandler({
+    active: () => true, letters: () => on, toggle: () => calls.push('toggle'), step: (d) => calls.push(`step${d}`),
+    first() {}, last() {}, go: (i) => calls.push(`go${i}`), zoom: () => calls.push('zoom'), fit() {},
+    tool: (t) => calls.push(t), blink() {}, diff() {}, stars() {}, help() {}, leave() {},
+  });
+  const key = (k) => h({ key: k, code: k === ' ' ? 'Space' : '', target: { tagName: 'DIV', id: '', getAttribute: () => null }, preventDefault() {} });
+  key('s'); key('3');
+  on = false;
+  key('s'); key('3'); key('+'); key('ArrowRight');
+  assert.deepEqual(calls, ['deep', 'go2', 'step1']);
+});

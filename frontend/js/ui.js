@@ -65,7 +65,9 @@ export function setupTabs(tablist, onSelect = () => {}) {
       const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
       if (!d) return;
       e.preventDefault();
-      select(tabs[(i + d + tabs.length) % tabs.length], true);
+      const shown = tabs.filter((t) => !t.hidden);
+      const k = shown.indexOf(tab);
+      select(shown[(k + d + shown.length) % shown.length], true);
     });
   });
   return (id) => select(tabs.find((t) => t.id === id) || tabs[0]);

@@ -2,7 +2,7 @@
 // brightness, contrast), Overlays (target marker, flags, Gaia filters), the colour
 // bar, the hover readout, the Gaia star tooltip and the zoom buttons.
 import { STRETCH_KINDS, STRETCH_LABELS, COLORMAPS, COLORMAP_LABELS, colormapLut, colorbarTicks } from './render.js';
-import { unproject, totalPm } from './gaia.js';
+import { unproject, totalPm, hasMotion } from './gaia.js';
 import { DEFAULT_DISPLAY } from './player.js';
 import { $, el } from './ui.js';
 
@@ -131,8 +131,10 @@ export function createControls(player, { current, update }) {
     const g = Number(s.gmag);
     tip.replaceChildren(
       el('b', {}, `Gaia DR3 ${s.source_id || ''}`), el('br'),
-      `G = ${Number.isFinite(g) ? g.toFixed(2) : '?'} · motion ${(totalPm(s) * 1000).toFixed(1)} mas/yr`, el('br'),
-      `(${Number(s.pmra || 0).toFixed(1)}, ${Number(s.pmdec || 0).toFixed(1)}) mas/yr east, north`);
+      ...(hasMotion(s)
+        ? [`G = ${Number.isFinite(g) ? g.toFixed(2) : '?'} · motion ${(totalPm(s) * 1000).toFixed(1)} mas/yr`, el('br'),
+          `(${Number(s.pmra).toFixed(1)}, ${Number(s.pmdec).toFixed(1)}) mas/yr east, north`]
+        : [`G = ${Number.isFinite(g) ? g.toFixed(2) : '?'} · motion not measured by Gaia`]));
     const rect = $('stage').getBoundingClientRect();
     const x = evt.clientX - rect.left;
     const y = evt.clientY - rect.top;

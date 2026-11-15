@@ -62,6 +62,11 @@ export function drawScatter(canvas, points, opts) {
   if (xMax === xMin) { xMin -= 1; xMax += 1; }
   let yMin = Math.min(...valid.map((p) => ty(opts.logY ? yRaw(p) : yRaw(p) - errOf(p))));
   let yMax = Math.max(...valid.map((p) => ty(opts.logY ? yRaw(p) : yRaw(p) + errOf(p))));
+  if (Array.isArray(opts.yFixed)) { // fixed axes (e.g. a replay that adds points one by one)
+    const [lo, hi] = opts.yFixed.map((v) => (opts.logY ? Math.log10(Math.max(v, 1e-12)) : v));
+    yMin = lo;
+    yMax = hi;
+  }
   const yPad = (yMax - yMin || Math.abs(yMax) || 1) * 0.08;
   yMin -= yPad;
   yMax += yPad;

@@ -20,6 +20,10 @@
       </a>
       <p class="tagline">Watch the infrared sky change, with NASA&nbsp;SPHEREx</p>
       <span class="mock-badge" id="mock-badge" hidden>Demo data (mock)</span>
+      <div class="level-switch" role="group" aria-label="How much to show">
+        <button type="button" class="btn btn-ghost" id="level-toggle" aria-pressed="true">More tools</button>
+        <label class="check" title="Slower playback (2 pictures a second), slower blinking and no autoplay."><input type="checkbox" id="calm"> Calm motion</label>
+      </div>
     </div>
 
     <form class="search" id="search-form" role="search" novalidate>
@@ -31,7 +35,7 @@
         <datalist id="q-suggest"></datalist>
         <p class="hint" id="q-hint">Decimal degrees or hh:mm:ss ±dd:mm:ss both work.</p>
       </div>
-      <div class="field">
+      <div class="field advanced">
         <label for="fov">Field of view</label>
         <select id="fov" name="fov" aria-describedby="fov-hint">
           <option value="0.05">0.05° (3′)</option>
@@ -71,7 +75,18 @@
         <div class="progress-bar" id="progress-bar"></div>
       </div>
       <p class="hint">New patches of sky are fetched live from the NASA/IPAC archive, which can take a minute or two. Featured targets load instantly.</p>
+      <figure class="build-preview" id="build-preview" hidden>
+        <img id="build-preview-img" alt="The same patch of sky photographed by the 2MASS survey around 1998–2001" width="240" height="240" crossorigin="anonymous">
+        <figcaption>While SPHEREx's pictures load: this same patch as the <b>2MASS</b> survey saw it around 1998–2001. A different, older telescope, shown so you know what you're about to watch.</figcaption>
+      </figure>
+      <div class="chips" id="build-meanwhile"></div>
     </section>
+
+    <div class="ready-banner card" id="ready-banner" role="status" hidden>
+      <span id="ready-msg"></span>
+      <button type="button" class="btn btn-primary" id="ready-show">Show it</button>
+      <button type="button" class="btn btn-ghost" id="ready-dismiss" aria-label="Dismiss">✕</button>
+    </div>
 
     <div class="error card" id="error" role="alert" hidden>
       <p id="error-msg"></p>
@@ -85,6 +100,7 @@
         <p>SPHEREx is a NASA space telescope that photographs the whole sky in 102 infrared colours, coming back to every spot about every six months. SkyBlink lines up those pictures of one small patch and plays them as a flip-book.</p>
         <p><strong>Each frame is one SPHEREx look at this patch of sky. Things that jump between frames are moving.</strong> Things that get brighter and fainter are variable.</p>
       </div>
+      <div class="home-extras" id="home-extras"></div>
       <h2 class="section-title">Featured targets</h2>
       <ul class="gallery" id="gallery" aria-live="polite">
         <li class="card skeleton" aria-hidden="true"></li>
@@ -97,13 +113,22 @@
       <div class="viewer-head">
         <div>
           <h2 id="view-title">Target</h2>
-          <p class="coords" id="view-coords"></p>
+          <p class="coords advanced" id="view-coords"></p>
         </div>
         <div class="share">
           <button type="button" class="btn btn-ghost" id="copy-link">Copy link</button>
           <button type="button" class="btn btn-ghost" id="copy-embed">Copy embed code</button>
           <a class="btn btn-ghost embed-only" id="open-full" target="_blank" rel="noopener">Open in SkyBlink ↗</a>
         </div>
+      </div>
+      <section class="puzzle-panel card" id="puzzle-panel" hidden aria-live="polite"></section>
+      <div class="simple-bar" id="simple-bar" role="group" aria-label="Quick actions">
+        <button type="button" class="btn big" id="sb-play">▶ Play</button>
+        <button type="button" class="btn big" id="sb-changed">What changed?</button>
+        <button type="button" class="btn big" id="sb-blink">Blink first ↔ last</button>
+        <button type="button" class="btn big" id="sb-then" hidden>Then &amp; now</button>
+        <button type="button" class="btn big" id="sb-measure" hidden>Measure it</button>
+        <button type="button" class="btn big" id="sb-share">Share</button>
       </div>
       <p class="explainer" id="explainer">Each frame is one SPHEREx look at this patch of sky. Things that jump between frames are moving. The red crosshair marks the position you asked for; north is up and east is left.</p>
       <p class="explainer warn" id="visits-warning" hidden>In <b>Every image</b> mode each picture is taken at a slightly different infrared wavelength (SPHEREx's filter changes across the detector). A red or blue star can brighten and fade just because the wavelength changed. Check the µm in the frame label, or sort by wavelength.</p>
@@ -117,9 +142,11 @@
               <div class="segmented" role="radiogroup" aria-label="Compare tool" id="tool-group">
                 <button type="button" role="radio" data-tool="animate" aria-checked="true">Animation</button>
                 <button type="button" role="radio" data-tool="blink" aria-checked="false">Blink A/B</button>
-                <button type="button" role="radio" data-tool="diff" aria-checked="false">Difference</button>
-                <button type="button" role="radio" data-tool="deep" aria-checked="false">Deep stack</button>
-                <button type="button" role="radio" data-tool="reference" aria-checked="false">Reference</button>
+                <button type="button" role="radio" data-tool="diff" aria-checked="false" class="advanced">Difference</button>
+                <button type="button" role="radio" data-tool="deep" aria-checked="false" class="advanced">Deep stack</button>
+                <button type="button" role="radio" data-tool="reference" aria-checked="false" class="advanced">Reference</button>
+                <button type="button" role="radio" data-tool="then" aria-checked="false" hidden>Then &amp; now</button>
+                <button type="button" role="radio" data-tool="measure" aria-checked="false" hidden>Measure it</button>
               </div>
             </div>
             <div class="tool-panel" data-panel="animate" hidden></div>
@@ -158,6 +185,21 @@
             </div>
             <div class="tool-panel" data-panel="deep" hidden>
               <p class="hint" id="deep-info">All images added together: the deepest, least noisy view. Moving objects smear out.</p>
+            </div>
+            <div class="tool-panel" data-panel="then" hidden>
+              <p class="then-which" id="then-which" aria-live="polite"></p>
+              <div class="ab-row">
+                <button type="button" class="btn btn-primary" id="then-flip" aria-pressed="false">Flip automatically</button>
+                <button type="button" class="btn btn-ghost" id="then-tap">Flip once</button>
+                <div class="field grow"><label for="then-curtain">Or drag the curtain</label>
+                  <input type="range" id="then-curtain" min="0" max="100" step="1" value="100"></div>
+              </div>
+              <p id="then-story"></p>
+              <p class="hint"><b>Compare positions only:</b> the older picture is from a different telescope, in a different infrared colour and sharper or softer, so brightness and size don't compare. The dashed ring is where Gaia says the star was then, the solid ring where it is now. Flipping changes the picture once a second, which is safe for photosensitive viewers.</p>
+              <p class="hint" id="then-credit"></p>
+            </div>
+            <div class="tool-panel" data-panel="measure" hidden>
+              <div class="measure-steps" id="measure-steps" aria-live="polite"></div>
             </div>
             <div class="tool-panel" data-panel="reference" hidden>
               <div class="field-inline">
@@ -202,12 +244,12 @@
               <svg viewBox="0 0 24 24" aria-hidden="true" class="i-pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></button>
             <button type="button" class="btn icon" id="next" aria-label="Next frame (right arrow)">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
-            <div class="fps field-inline">
+            <div class="fps field-inline advanced">
               <label for="fps">Speed</label>
-              <input type="range" id="fps" min="0.5" max="12" step="0.5" value="2" aria-describedby="fps-out">
+              <input type="range" id="fps" min="0.5" max="6" step="0.5" value="2" aria-describedby="fps-out" title="At most 6 pictures a second: never more than 3 flashes a second, the safe limit for people with photosensitive epilepsy.">
               <output id="fps-out" for="fps">2 fps</output>
             </div>
-            <div class="field-inline">
+            <div class="field-inline advanced">
               <label for="loop-mode">Repeat</label>
               <select id="loop-mode" class="compact">
                 <option value="loop">Loop</option>
@@ -215,7 +257,7 @@
                 <option value="once">Play once</option>
               </select>
             </div>
-            <div class="segmented" role="radiogroup" aria-label="Frames to show" id="mode-group">
+            <div class="segmented advanced" role="radiogroup" aria-label="Frames to show" id="mode-group">
               <button type="button" role="radio" data-mode="stack" aria-checked="true">Stacked per survey window</button>
               <button type="button" role="radio" data-mode="visits" aria-checked="false">Every image</button>
             </div>
@@ -225,6 +267,7 @@
                 <option value="time">By date</option>
                 <option value="wavelength">By wavelength</option>
               </select>
+              <label class="check" title="Hide single pictures the health check marks as poor (heavily flagged or very noisy). They stay in the data; this only skips them while playing."><input type="checkbox" id="skip-poor"> Skip poor pictures</label>
             </div>
           </div>
 
@@ -233,11 +276,11 @@
             <input type="range" id="scrub" min="0" max="0" value="0" step="1">
             <div class="ticks" id="ticks" aria-hidden="true"></div>
             <div class="timestrip" id="timestrip" aria-hidden="true"></div>
-            <p class="hint keys">Keys: <kbd>Space</kbd> play · <kbd>←</kbd> <kbd>→</kbd> step · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>B</kbd> blink · <kbd>D</kbd> difference
+            <p class="hint keys advanced">Keys: <kbd>Space</kbd> play · <kbd>←</kbd> <kbd>→</kbd> step · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>B</kbd> blink · <kbd>D</kbd> difference
               · <button type="button" class="linklike" id="keys-open">all shortcuts</button></p>
           </div>
 
-          <details class="settings card" id="display-panel" open>
+          <details class="settings card advanced" id="display-panel" open>
             <summary>Display</summary>
             <div class="overlay-controls" role="group" aria-label="Display">
               <div class="field-inline">
@@ -263,7 +306,7 @@
             <p class="hint" id="disp-note">Every frame shares one brightness scale, so changes you see are real changes in the sky.</p>
           </details>
 
-          <details class="settings card" id="overlay-panel">
+          <details class="settings card advanced" id="overlay-panel">
             <summary>Overlays</summary>
             <div class="overlay-controls" role="group" aria-label="Overlays">
               <div class="field-inline">
@@ -301,7 +344,7 @@
             <p class="hint" id="star-note">Ticks sit just outside each Gaia star so they never hide it. Arrows show motion over the time span (stars moving ≥ 20 mas/yr). Hover a star for details.</p>
           </details>
 
-          <div class="export-row" role="group" aria-label="Save">
+          <div class="export-row advanced" role="group" aria-label="Save">
             <button type="button" class="btn btn-ghost" id="save-png">Save image (PNG)</button>
             <button type="button" class="btn btn-ghost" id="save-video">Record animation (video)</button>
           </div>
@@ -310,12 +353,20 @@
         <aside class="side card" aria-label="Details">
           <div class="tabs" role="tablist" aria-label="Details">
             <button type="button" role="tab" id="tab-info" aria-controls="panel-info" aria-selected="true">Frame info</button>
-            <button type="button" role="tab" id="tab-spec" aria-controls="panel-spec" aria-selected="false" tabindex="-1">Spectrum</button>
-            <button type="button" role="tab" id="tab-lc" aria-controls="panel-lc" aria-selected="false" tabindex="-1">Light curve</button>
-            <button type="button" role="tab" id="tab-atlas" aria-controls="panel-atlas" aria-selected="false" tabindex="-1">Sky atlas</button>
+            <button type="button" role="tab" id="tab-year" aria-controls="panel-year" aria-selected="false" tabindex="-1">SPHEREx's year</button>
+            <button type="button" role="tab" id="tab-spec" aria-controls="panel-spec" aria-selected="false" tabindex="-1" class="advanced">Spectrum</button>
+            <button type="button" role="tab" id="tab-lc" aria-controls="panel-lc" aria-selected="false" tabindex="-1" class="advanced">Light curve</button>
+            <button type="button" role="tab" id="tab-atlas" aria-controls="panel-atlas" aria-selected="false" tabindex="-1" class="advanced">Sky atlas</button>
           </div>
           <div class="tab-panel" role="tabpanel" id="panel-info" aria-labelledby="tab-info" tabindex="0">
+            <section class="move-card" id="move-card" hidden aria-live="polite"></section>
+            <section class="distance-card" id="distance-card" hidden></section>
+            <section class="describe-card" id="describe-card" hidden></section>
+            <p class="health-note" id="health-note" hidden></p>
             <dl class="meta" id="meta"></dl>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="panel-year" aria-labelledby="tab-year" tabindex="0" hidden>
+            <div id="year-panel"></div>
           </div>
           <div class="tab-panel" role="tabpanel" id="panel-spec" aria-labelledby="tab-spec" tabindex="0" hidden>
             <p class="hint" id="spec-hint">Click any pixel in the image to see how bright it is at each infrared wavelength.</p>
@@ -342,6 +393,7 @@
             <ul class="spec-legend" id="spec-legend"></ul>
             <div class="analysis-controls">
               <button type="button" class="btn btn-ghost" id="spec-all" hidden>Add other bands</button>
+              <button type="button" class="btn btn-ghost" id="spec-replay">Watch it being collected</button>
               <button type="button" class="btn btn-ghost" id="spec-csv" disabled>Download CSV</button>
             </div>
             <p class="hint">Hollow points are saturated star cores filled in by the pipeline: not real measurements. Spectra are a visualization from IRSA's per-pixel wavelength map, not science-grade photometry.</p>
@@ -395,9 +447,41 @@
       <dt><kbd>?</kbd></dt><dd>This list</dd>
     </dl>
     <p class="hint">Scroll or pinch on the image to zoom, drag to pan, double-click to fit.</p>
+    <label class="check"><input type="checkbox" id="keys-letters" checked> Single-key shortcuts (letters, numbers, + and −)</label>
+    <p class="hint">Turn these off if you use voice control or a screen reader and keys fire by accident. Space, the arrow keys, Home and End keep working.</p>
     <form method="dialog"><button class="btn btn-primary" type="submit">Close</button></form>
   </dialog>
 
+  <dialog class="ir-dialog card" id="ir-dialog" aria-labelledby="ir-title">
+    <h2 id="ir-title">See infrared with your TV remote</h2>
+    <ol>
+      <li>Tap <b>Start camera</b> (the picture stays on your device; nothing is recorded or sent).</li>
+      <li>Point a TV remote at the camera and hold down any button.</li>
+      <li>Look for a flickering light on the remote's tip. Your eyes can't see it, but the camera can.</li>
+    </ol>
+    <video id="ir-video" playsinline muted width="320" height="240"></video>
+    <p class="hint" id="ir-camera-msg" aria-live="polite"></p>
+    <div class="chips">
+      <button type="button" class="btn btn-ghost" id="ir-start">Start camera</button>
+      <button type="button" class="btn btn-primary" id="ir-seen">I see it!</button>
+    </div>
+    <p class="hint">No flicker? Many phone cameras block infrared; the front (selfie) camera often doesn't. Some remotes use radio instead of infrared.</p>
+    <div id="ir-after" hidden>
+      <div class="ir-ruler" aria-label="Wavelengths in micrometres: eyes 0.4 to 0.7, TV remote about 0.94, SPHEREx 0.75 to 5">
+        <span class="ir-eyes">your eyes 0.4–0.7 µm</span>
+        <span class="ir-remote">remote ~0.94 µm</span>
+        <span class="ir-spherex">SPHEREx 0.75–5 µm</span>
+      </div>
+      <p>That light is infrared, just past red. Most remotes flash at about 0.94 µm, which is one of the 102 colours SPHEREx photographs the sky in.</p>
+      <div class="chips">
+        <button type="button" class="btn btn-primary" id="ir-sky">Show me the sky in my remote's colour</button>
+        <button type="button" class="btn btn-ghost" id="ir-longest">Now SPHEREx's longest colour (5 µm)</button>
+      </div>
+    </div>
+    <form method="dialog"><button class="btn btn-ghost" type="submit">Close</button></form>
+  </dialog>
+
+  <div class="kiosk-caption" id="kiosk-caption" aria-live="polite" hidden></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

@@ -36,7 +36,7 @@ function pointLines(p, unit) {
  * Spectrum chart. colorBy: 'det' | 'window' (window colours reveal variability).
  * Returns the chart's hit tester.
  */
-export function drawSpectrum(canvas, points, { unit = 'MJy/sr', colorBy = 'det', logY = false, highlight = null } = {}) {
+export function drawSpectrum(canvas, points, { unit = 'MJy/sr', colorBy = 'det', logY = false, highlight = null, yFixed = null } = {}) {
   const wins = windowsIn(points);
   const color = colorBy === 'window'
     ? (p) => WINDOW_COLORS[Math.max(0, wins.indexOf(p.window)) % WINDOW_COLORS.length]
@@ -53,6 +53,7 @@ export function drawSpectrum(canvas, points, { unit = 'MJy/sr', colorBy = 'det',
     yLabel: `Brightness (${unit})`,
     logY,
     highlight,
+    yFixed,
     tooltip: (p) => pointLines(p, unit),
     emptyText: logY ? 'No positive measurements to show on a log scale.' : 'No measurements at this pixel.',
   });

@@ -8,7 +8,8 @@ Page URL state (shareable/embeddable): `/?ra=133.79513&dec=-7.24515&fov=0.1&det=
 - `ra`, `dec`: decimal degrees (ICRS). `target` (optional): free text name, resolved if ra/dec absent.
 - `fov`: degrees, one of 0.05, 0.1, 0.2, 0.3, 0.5.
 - `det`: D1..D6. `mode`: `stack` (one frame per survey window) or `visits` (every image).
-- `embed=1` hides the header/controls except the player.
+- `embed=1` hides the header/controls except the player. `kiosk=1` runs the self-playing museum show of the featured targets.
+- `fps`: 0.5–6. Capped at 6 (links asking for more are clamped) so playback can never exceed 3 flashes a second.
 
 Optional view settings, so a shared link reopens exactly what was on screen. Each is left out of
 the URL at its default; invalid values fall back to the default (`frontend/js/urlstate.js`).
@@ -16,7 +17,7 @@ the URL at its default; invalid values fall back to the default (`frontend/js/ur
 | Param | Values (default first) | Meaning |
 |---|---|---|
 | `frame` | `0`, integer | frame index shown (in the current order) |
-| `tool` | `animate`, `blink`, `diff`, `deep`, `reference` | compare tool; `blink`/`diff` start with `a`/`b` |
+| `tool` | `animate`, `blink`, `diff`, `deep`, `reference`, `then`, `measure` | compare tool; `blink`/`diff` start with `a`/`b`; `then` (Then & Now) and `measure` exist only on the featured motion targets |
 | `a`, `b` | frame indices | the A/B frames for blink and difference |
 | `blink` | `1`, `0.5`, `2` | blink swaps per second (never above 2: WCAG limit is 3) |
 | `sort` | `time`, `wavelength` | frame order in `visits` mode |
@@ -29,6 +30,9 @@ the URL at its default; invalid values fall back to the default (`frontend/js/ur
 | `flags` | absent, `1` | flagged-pixel overlay (per image) |
 | `cross` | `cross`, `corners`, `off` | target marker |
 | `px`, `py`, `ap` | pixel; `0`, `1`, `2` | selected pixel (spectrum/light curve) and aperture radius |
+| `level` | absent, `simple`, `full` | simple view (big buttons, expert controls hidden) or all tools; absent = the visitor's remembered choice, else simple |
+| `calm` | absent, `1` | calm motion: playback ≤ 2 fps, blink 0.5 Hz, no autoplay |
+| `skip` | absent, `1` | in `visits` mode, skip pictures the health check marks poor |
 
 ## GET /api/resolve?q=<text>
 Accepts a name ("Barnard's Star"), decimal "133.795 -7.245", or sexagesimal "08h55m10.831s -7d14m42.53s" / "08:55:10.8 -07:14:42".
@@ -61,13 +65,13 @@ The manifest once status is done:
       "file": "https://irsa.../level2_...fits", "collection": "spherex_dr1",
       "flag_frac": 0.03, "flag_counts": {"SOURCE": 12, "NONLINEAR": 0}
   }],
-  "stars": [{"source_id": "...", "ra":..., "dec":..., "pmra": mas/yr, "pmdec": mas/yr, "gmag": 12.3}],
+  "stars": [{"source_id": "...", "ra":..., "dec":..., "pmra": mas/yr|null, "pmdec": mas/yr|null, "parallax": mas|null, "parallax_over_error": float|null, "gmag": 12.3, "epoch_mjd": 57388.5}],
   "notes": ["Barnard's Star saturates in every band: watch the saturated core move."]
 }
 ```
 - Frame PNGs are `npix × npix`, north up, east left, row 0 = north. All frames of one view share one stretch, so they can be animated directly.
 - `flags_png` is an RGBA overlay (transparent where unflagged).
-- `stars` is Gaia DR3 within the FOV (may be empty); frontend projects them with a TAN projection centred on ra/dec at `scale_arcsec` per pixel.
+- `stars` is Gaia DR3 within the FOV (may be empty). A missing proper motion or parallax is `null` (unknown), never 0. Older manifests may lack `parallax`/`parallax_over_error`; frontend projects them with a TAN projection centred on ra/dec at `scale_arcsec` per pixel.
 
 ## GET /api/diff/{key}?a=<frameRef>&b=<frameRef>
 frameRef is `s<window>` (stack), `v<i>` (visit) or `deep`. Returns PNG of b − a with a symmetric stretch (red = brighter in b, blue = brighter in a).

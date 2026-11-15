@@ -187,3 +187,20 @@ def test_stretch_keeps_bright_star_variability_visible():
     a += rng.normal(0, 0.01, a.shape); b += rng.normal(0, 0.01, b.shape)
     p = asinh_stretch_params([a, b])
     assert to_uint8(a, p)[5, 5] - to_uint8(b, p)[5, 5] >= 10  # halving flux is not clipped away
+
+
+def test_gaia_csv_keeps_missing_motion_unknown():
+    from skyblink.stars import parse_gaia_csv
+
+    text = (
+        "source_id,ra,dec,pmra,pmdec,parallax,parallax_over_error,phot_g_mean_mag\n"
+        "1,10.0,20.0,-798.6,10328.1,546.98,2384.6,8.19\n"
+        "2,10.1,20.1,,,,,19.5\n"
+        "3,,20.2,1,1,1,1,12\n"
+    )
+    stars = parse_gaia_csv(text)
+    assert len(stars) == 2  # a row without a position is dropped
+    assert stars[0]["pmdec"] == 10328.1 and stars[0]["parallax"] == 546.98
+    assert stars[0]["parallax_over_error"] == 2384.6
+    # A 2-parameter solution has no motion: None ("unknown"), never 0.0 ("doesn't move").
+    assert stars[1]["pmra"] is None and stars[1]["pmdec"] is None and stars[1]["parallax"] is None

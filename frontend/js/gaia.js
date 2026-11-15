@@ -28,9 +28,19 @@ export function project(ra, dec, view) {
   };
 }
 
-/** Star position (deg) at `mjd`, propagated linearly from J2016.0. pmra is μα·cosδ (Gaia). */
+/** True when the star has a measured proper motion (Gaia 2-parameter solutions have none). */
+export function hasMotion(star) {
+  return star != null && Number.isFinite(Number(star.pmra)) && Number.isFinite(Number(star.pmdec))
+    && star.pmra !== null && star.pmdec !== null;
+}
+
+/**
+ * Star position (deg) at `mjd`, propagated linearly from the star's own `epoch_mjd`
+ * (J2016.0 for Gaia DR3 when absent). pmra is μα·cosδ (Gaia). Unknown motion = no shift.
+ */
 export function propagate(star, mjd) {
-  const years = (mjd - J2016_MJD) / DAYS_PER_YEAR;
+  const epoch = Number.isFinite(Number(star.epoch_mjd)) && star.epoch_mjd !== null ? Number(star.epoch_mjd) : J2016_MJD;
+  const years = (mjd - epoch) / DAYS_PER_YEAR;
   const pmra = Number(star.pmra) || 0;
   const pmdec = Number(star.pmdec) || 0;
   const cosDec = Math.max(Math.cos(star.dec * DEG), 1e-6);
