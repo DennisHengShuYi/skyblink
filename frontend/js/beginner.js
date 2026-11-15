@@ -7,9 +7,9 @@ import { detectFinds, saturationMask } from './detect.js';
 import { renderFinds, findsDecorator } from './finds-ui.js';
 import { revealTabFor } from './finds-text.js';
 import { renderObjectCard } from './objectcard.js';
-import { spectrumWords } from './describe.js';
+import { spectrumWords, readColoursLabel } from './describe.js';
 import { loadColour, COLOUR_DETS } from './colour.js';
-import { detectorViews, gatherSpectrum, rememberView } from './spectrum-data.js';
+import { detectorViews, gatherSpectrum, rememberView, extraBands, cubeMegabytes } from './spectrum-data.js';
 import { SIGHTS } from './sights.js';
 import { pickOnSky } from './aladin.js';
 import { startTour } from './tour.js';
@@ -113,7 +113,12 @@ export function mountBeginner(ctx) {
       value: player.valueAt(pixel.x, pixel.y),
       caption: f && atCentre ? f.caption : null,
       untrackedMover: finds.find((m) => m.kind === 'moving' && !m.gaia && Math.hypot(m.x - pixel.x, m.y - pixel.y) <= 2) || null,
-      spectrumWords: gatherSpectrum(view, pixel.x, pixel.y, { allBands: true }).then((r) => spectrumWords(r.points)),
+      // Only bands already loaded; the other bands download when the visitor asks (card button).
+      spectrumWords: gatherSpectrum(view, pixel.x, pixel.y, { allBands: false }).then((r) => spectrumWords(r.points)),
+      colours: {
+        label: readColoursLabel(extraBands(view).length, cubeMegabytes(view)),
+        load: () => gatherSpectrum(view, pixel.x, pixel.y, { allBands: true }).then((r) => spectrumWords(r.points)),
+      },
       onHearBrightness: (t) => hearBrightness(pixel, t),
       onHearSpectrum: (t) => hearSpectrum(pixel, t),
       onShowSpectrum: () => ctx.selectSideTab('tab-spec'),

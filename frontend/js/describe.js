@@ -94,3 +94,10 @@ export function spectrumWords(points) {
   if (short <= 0 && long > 0) return 'Much brighter at long infrared wavelengths — a sign it is cool (or dusty).';
   return 'Similar brightness across infrared colours.';
 }
+
+/** Label for the card's opt-in button that downloads the other bands; null when there are none. */
+export function readColoursLabel(count, megabytesEach) {
+  if (!(count >= 1)) return null;
+  const mb = Math.max(1, Math.round(count * (Number(megabytesEach) || 0)));
+  return `Read its infrared colours (about ${mb} MB)`;
+}

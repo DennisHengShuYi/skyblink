@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { starType, distanceText, speedText, spectrumWords, NOT_IN_GAIA, NOT_IN_GAIA_MOVER } from '../../frontend/js/describe.js';
+import { starType, distanceText, speedText, spectrumWords, NOT_IN_GAIA, NOT_IN_GAIA_MOVER, readColoursLabel } from '../../frontend/js/describe.js';
 
 const noNaN = (o) => assert.ok(!JSON.stringify(o).includes('NaN'), `NaN in ${JSON.stringify(o)}`);
 
@@ -118,4 +118,10 @@ test('headline: unmeasurable pixel (no data / override) is neutral, not "brown d
 test('headline: faint pixel is empty sky; bright uncatalogued is "not in SkyBlink\'s Gaia list"', () => {
   assert.match(objectHeadline({ mover: null, snr: 2 }).title, /empty sky/);
   assert.match(objectHeadline({ mover: null, snr: 40 }).title, /not in SkyBlink's Gaia list/);
+});
+
+test('readColoursLabel: no other bands means no button; sizes are rounded and never 0 MB', () => {
+  assert.equal(readColoursLabel(0, 8), null);
+  assert.equal(readColoursLabel(5, 7.6), 'Read its infrared colours (about 38 MB)');
+  assert.equal(readColoursLabel(1, 0.2), 'Read its infrared colours (about 1 MB)');
 });

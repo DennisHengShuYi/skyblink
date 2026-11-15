@@ -16,7 +16,8 @@ export function nearestStar(view, x, y, mjd, tolPx = MATCH_PX) {
 /**
  * Render the card into `container`. `ctx`:
  * {view, pixel, frames, value: {value, sigma}|null, caption, untrackedMover: Find|null, spectrumWords: Promise<string|null>,
- *  onHearBrightness, onHearSpectrum, onShowSpectrum}
+ *  colours: {label: string|null, load: () => Promise<string|null>}, onHearBrightness, onHearSpectrum, onShowSpectrum}
+ * The infrared-colours sentence uses bands already loaded; `colours.label` offers to download the rest.
  */
 export function renderObjectCard(container, ctx) {
   const { view, pixel, frames } = ctx;
@@ -42,6 +43,9 @@ export function renderObjectCard(container, ctx) {
   const hearS = el('button', { type: 'button', class: 'btn btn-ghost small' }, '🔊 Hear its spectrum');
   const spec = el('button', { type: 'button', class: 'btn btn-ghost small' }, 'Show its spectrum');
   const soundText = el('p', { class: 'hint sound-text', 'aria-live': 'polite' });
+  const coloursBtn = ctx.colours?.label
+    ? el('button', { type: 'button', class: 'btn btn-ghost small' }, ctx.colours.label)
+    : null;
   hearB.addEventListener('click', () => ctx.onHearBrightness(soundText));
   hearS.addEventListener('click', () => ctx.onHearSpectrum(soundText));
   spec.addEventListener('click', () => ctx.onShowSpectrum());
@@ -50,12 +54,24 @@ export function renderObjectCard(container, ctx) {
     el('p', { class: 'card-title' }, el('strong', {}, title)),
     ...lines.map((t) => el('p', {}, t)),
     words,
+    ...(coloursBtn ? [el('p', {}, coloursBtn)] : []),
     el('div', { class: 'card-actions' }, hearB, hearS, spec),
     soundText,
     el('p', { class: 'hint' }, 'Spectra are a visualization, not science-grade measurements.')));
-  Promise.resolve(ctx.spectrumWords).then((w) => {
-    if (w) words.textContent = w;
-    else words.remove();
-  }).catch(() => words.remove());
+  const fill = (promise) => Promise.resolve(promise).then((w) => {
+    if (w) {
+      words.textContent = w;
+      words.hidden = false;
+    } else words.hidden = true;
+  }).catch(() => { words.hidden = true; });
+  fill(ctx.spectrumWords);
+  if (coloursBtn) {
+    coloursBtn.addEventListener('click', () => {
+      coloursBtn.disabled = true;
+      words.hidden = false;
+      words.textContent = 'Reading its infrared colours…';
+      fill(ctx.colours.load()).then(() => coloursBtn.remove());
+    });
+  }
   return star;
 }
