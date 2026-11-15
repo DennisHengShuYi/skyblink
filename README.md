@@ -31,6 +31,22 @@ Type a name or sky coordinates (RA/Dec) and SkyBlink plays every SPHEREx image o
 - **Save.** The current frame as PNG, the animation as video (WebM/MP4), spectra and light curves as CSV.
 - **Shareable and embeddable.** The whole view, including tool, display settings, overlays and the selected pixel, lives in the URL (`/?ra=133.75991&dec=-7.24225&fov=0.1&det=D6&mode=stack`), and `&embed=1` gives a bare player for iframes.
 
+## For beginners
+
+SkyBlink is built for people who have never touched astronomy data:
+
+- **No coordinates needed.** Ten popular sights (Orion Nebula, Pleiades, Proxima Centauri and others) are one click away and pre-built, so they open instantly. There's also a sky map where you can click anywhere to look there.
+- **"Something moved here!"** Every view is scanned automatically. Numbered rings mark anything that moved or changed brightness between surveys, and the **Finds** tab explains each one in plain words, for example "Known star, moving 10.0″ a year", "Got 69% fainter" or "Moved — not in Gaia's catalogue". These are always labelled *candidates*, never discoveries. Clicking a find blinks the two frames that show the change best.
+- **"What am I looking at?"** Click anything and a card explains it:
+  - what kind of star it is (from Gaia's colour and distance);
+  - how far away it is, and when its light left;
+  - how fast it crosses the sky ("it would cross the full Moon in about 179 years");
+  - what its infrared colours say ("much brighter at long wavelengths — a sign it is cool").
+- **False colour.** D1 is shown as blue, D3 as green and D6 as red, so cold brown dwarfs glow orange-red among neutral stars. For new spots, SkyBlink offers to build the missing bands.
+- **Guided tours.** Each featured target has a 4–5 step walkthrough that drives the page: it plays the frames, pulses the target, opens Difference and the spectrum.
+- **Share it.** Export an animated GIF of what's on screen, or a 1200×630 picture card with before and after frames and a link. On phones, these open the system share sheet.
+- **Listen to the sky.** Brightness over time, or a spectrum, is played as notes (higher means brighter), each with a text description for people who can't hear it.
+
 ## Featured test targets
 
 Each one is pre-built so it loads instantly. Positions are moved forward to about 2025.9, so fast-moving stars sit at the crosshair.
@@ -45,7 +61,7 @@ Each one is pre-built so it loads instantly. Positions are moved forward to abou
 
 ## Keeping up with new SPHEREx data
 
-The archive collections live in one list in `backend/skyblink/config.py` (`COLLECTIONS`, which can also be set with the `SKYBLINK_COLLECTIONS` env var). When IRSA publishes a new release, add it to the front of that list. Searches cover every listed release, and the same pointing found in two releases is counted once, from the earlier release in the list. Rebuild the featured targets with `python scripts/build_featured.py`.
+The archive collections live in one list in `backend/skyblink/config.py` (`COLLECTIONS`, which can also be set with the `SKYBLINK_COLLECTIONS` env var). When IRSA publishes a new release, add it to the front of that list. Searches cover every listed release, and the same pointing found in two releases is counted once, from the earlier release in the list. Rebuild the featured targets with `python scripts/build_featured.py`. Rebuild the popular sights with `python scripts/build_featured.py --sights`, and refresh only the Gaia star lists with `python scripts/refresh_featured_stars.py`.
 
 ## How it works
 
