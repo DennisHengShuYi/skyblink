@@ -76,6 +76,15 @@ export function spectrumSeries(points) {
   return out;
 }
 
+/**
+ * What a Hear button should do: `current` is {textEl} for the sound now playing (or null),
+ * `textEl` is the caption element of the button that was pressed.
+ */
+export function soundAction(current, textEl) {
+  if (!current) return 'start';
+  return current.textEl === textEl ? 'toggle-off' : 'switch';
+}
+
 /** Play notes. Returns {stop()} or null if audio is unavailable or blocked. Never throws. */
 export function play(notes) {
   const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;

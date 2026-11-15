@@ -325,3 +325,10 @@ test('stillGaia is false for a mover on a fast Gaia star and for a mover with no
   assert.equal(detectFinds(view([on]), st, deepOf(st), P)[0].stillGaia, false);
   assert.equal(detectFinds(view([]), st, deepOf(st), P)[0].stillGaia, false);
 });
+
+test('a mover within 6 px of the field edge is ignored (patchy coverage); one 7 px in is kept', () => {
+  const near = stacksWith([[4, 15], [5, 15], [6, 15]], [2, 2, 2]);
+  assert.equal(detectFinds(view(), near, deepOf(near), P).length, 0);
+  const inside = stacksWith([[6, 15], [7, 15], [8, 15]], [2, 2, 2]);
+  assert.equal(detectFinds(view(), inside, deepOf(inside), P).filter((f) => f.kind === 'moving').length, 1);
+});

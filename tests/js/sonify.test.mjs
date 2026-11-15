@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toNotes, describeSound, lightcurve, spectrumSeries, play } from '../../frontend/js/sonify.js';
+import { toNotes, describeSound, lightcurve, spectrumSeries, play, soundAction } from '../../frontend/js/sonify.js';
 
 test('rising values make rising notes from 220 to 880 Hz', () => {
   const n = toNotes([1, 2, 3]);
@@ -53,4 +53,12 @@ test('play returns null when audio is unavailable', () => {
   delete globalThis.AudioContext;
   assert.equal(play(toNotes([1, 2])), null);
   if (saved) globalThis.AudioContext = saved;
+});
+
+test('soundAction: start when silent, toggle off from the same button, switch from another', () => {
+  const a = {};
+  const b = {};
+  assert.equal(soundAction(null, a), 'start');
+  assert.equal(soundAction({ textEl: a }, a), 'toggle-off');
+  assert.equal(soundAction({ textEl: a }, b), 'switch');
 });

@@ -125,3 +125,9 @@ test('readColoursLabel: no other bands means no button; sizes are rounded and ne
   assert.equal(readColoursLabel(5, 7.6), 'Read its infrared colours (about 38 MB)');
   assert.equal(readColoursLabel(1, 0.2), 'Read its infrared colours (about 1 MB)');
 });
+
+test('starType: a noisy parallax (signal-to-noise 2) cannot make a red giant; a clean one still can', () => {
+  assert.equal(starType({ gmag: 6, bp_rp: 1.6, parallax: 2, parallax_over_error: 2 }).label, 'Orange (K-type) star');
+  assert.equal(starType({ gmag: 6, bp_rp: 1.6, parallax: 2, parallax_over_error: 20 }).label, 'Red giant');
+  assert.equal(starType({ gmag: 6, bp_rp: 1.6, parallax: 2 }).label, 'Red giant'); // field missing: unchanged
+});

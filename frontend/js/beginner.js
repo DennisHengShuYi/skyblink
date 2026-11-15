@@ -12,10 +12,10 @@ import { loadColour, COLOUR_DETS } from './colour.js';
 import { detectorViews, gatherSpectrum, rememberView, extraBands, cubeMegabytes } from './spectrum-data.js';
 import { SIGHTS } from './sights.js';
 import { pickOnSky } from './aladin.js';
-import { startTour } from './tour.js';
+import { startTour, closeTour } from './tour.js';
 import { TOURS } from './tours.js';
 import { makeGif, makeCard, shareOrDownload, fileName } from './share.js';
-import { toNotes, describeSound, lightcurve, spectrumSeries, play } from './sonify.js';
+import { toNotes, describeSound, lightcurve, spectrumSeries, play, soundAction } from './sonify.js';
 import { shareUrl } from './urlstate.js';
 
 const POLL_MS = 1500;
@@ -33,6 +33,7 @@ export function mountBeginner(ctx) {
   let colourFrames = null;
   let sound = null;
   let pulseUntil = 0;
+  let tourKey = null; // view the open tour belongs to
 
   // ---------- rings and pulse ----------
   // Rings would give away the Spot-the-Change answer, so they step aside during a puzzle.
@@ -60,21 +61,29 @@ export function mountBeginner(ctx) {
   }
 
   // ---------- sound ----------
+  function stopSound() {
+    if (!sound) return;
+    clearTimeout(sound.timer);
+    sound.handle.stop();
+    sound.textEl.textContent = '';
+    sound = null;
+  }
+
+  // One sound at a time: the same button stops it, another button switches to its own sound.
   function hear(values, label, textEl) {
-    if (sound) {
-      sound.stop();
-      sound = null;
-      textEl.textContent = '';
-      return;
-    }
+    const action = soundAction(sound, textEl);
+    stopSound();
+    if (action === 'toggle-off') return;
     const words = `Sound: ${label} ${describeSound(values)}.`;
     textEl.textContent = words;
-    sound = play(toNotes(values));
-    if (!sound) {
+    const handle = play(toNotes(values));
+    if (!handle) {
       textEl.textContent = `${words} (Sound isn't available in this browser.)`;
       return;
     }
-    setTimeout(() => { sound = null; }, sound.durationMs + 400);
+    const mine = { handle, textEl, timer: null };
+    mine.timer = setTimeout(() => { if (sound === mine) sound = null; }, handle.durationMs + 400);
+    sound = mine;
   }
 
   async function hearBrightness(pixel, textEl) {
@@ -252,6 +261,7 @@ export function mountBeginner(ctx) {
   $('tour-start').addEventListener('click', () => {
     const f = featuredFor(ctx.current().view);
     if (!f) return;
+    tourKey = ctx.current().view?.key;
     startTour(f.slug, {
       player, compare: ctx.compare, ensureStacks: ctx.ensureStacks, selectSideTab: ctx.selectSideTab, pulse,
       setGaia: (on) => { $('ov-stars').checked = on; $('ov-stars').dispatchEvent(new Event('change')); },
@@ -295,14 +305,18 @@ export function mountBeginner(ctx) {
     /** After frames load: finds (once per view), tour button, colour state reset. */
     onFramesLoaded() {
       const { view } = ctx.current();
+      if (tourKey && view?.key !== tourKey) { // a different view: the tour's steps no longer apply
+        closeTour();
+        tourKey = null;
+      }
       const f = featuredFor(view);
       $('tour-start').hidden = !(f && TOURS[f.slug]);
       runFinds();
     },
     onHome() {
-      $('tour').hidden = true;
-      if (sound) sound.stop();
-      sound = null;
+      closeTour();
+      tourKey = null;
+      stopSound();
     },
     colour: { enter: colourEnter, leave: colourLeave },
     get finds() {

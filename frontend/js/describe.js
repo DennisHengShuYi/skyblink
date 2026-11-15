@@ -7,6 +7,7 @@ const MIN_PARALLAX_MAS = 0.2; // below this Gaia distances are too uncertain to 
 const MOON_WIDTH_ARCSEC = 1865;
 const KM_S_PER_AU_YR = 4.74;
 const MIN_PM_ARCSEC = 0.02;
+const MIN_PARALLAX_SNR = 5; // parallax_over_error below this is too noisy to judge a star's size
 const THIS_YEAR = 2026;
 const LOOKBACK_MAX_LY = 500;
 
@@ -34,9 +35,11 @@ export function objectHeadline({ mover, snr }) {
 const usable = (plx) => Number.isFinite(plx) && plx > 0;
 
 /** Rough star type from colour and (when parallax allows) absolute brightness. Null without colour. */
-export function starType({ gmag, bp_rp: colour, parallax }) {
+export function starType({ gmag, bp_rp: colour, parallax, parallax_over_error: parallaxSnr }) {
   if (!Number.isFinite(colour)) return null;
-  const absG = usable(parallax) && Number.isFinite(gmag) ? gmag + 5 * Math.log10(parallax / 100) : null;
+  // A parallax that is mostly noise would put a distant dwarf among the giants: use colour alone.
+  const reliable = !(Number.isFinite(parallaxSnr) && parallaxSnr < MIN_PARALLAX_SNR);
+  const absG = reliable && usable(parallax) && Number.isFinite(gmag) ? gmag + 5 * Math.log10(parallax / 100) : null;
   const t = (label, blurb) => ({ label, blurb });
   if (colour < 0.3) return t('Hot blue star', 'Much hotter than the Sun, glowing blue-white.');
   if (absG !== null && absG > 10 && colour < 1.0) return t('White dwarf', 'The small, hot leftover core of a star like the Sun.');
