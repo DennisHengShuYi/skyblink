@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import io
-
-import numpy as np
 import warnings
 
+import numpy as np
 from astropy import log as astropy_log
 from astropy.io import fits
 from astropy.wcs import WCS, FITSFixedWarning
@@ -33,7 +32,7 @@ def view_key(ra: float, dec: float, fov: float, det: str) -> str:
 
 def grid_wcs(ra: float, dec: float, fov: float) -> tuple[WCS, int]:
     """North-up, east-left TAN grid centred on the target at SPHEREx pixel scale."""
-    npix = int(round(fov * 3600.0 / PIXEL_SCALE_ARCSEC))
+    npix = round(fov * 3600.0 / PIXEL_SCALE_ARCSEC)
     npix += 1 - npix % 2  # odd so the target sits on a pixel centre
     scale = PIXEL_SCALE_ARCSEC / 3600.0
     w = WCS(naxis=2)

@@ -10,9 +10,9 @@ import math
 import random
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Callable
 
 import httpx
 import numpy as np
@@ -24,11 +24,11 @@ from .config import (
     BAND_UM,
     BUILD_BUDGET_S,
     CACHE_DIR,
-    RAW_CACHE_MAX_BYTES,
     FETCH_CONCURRENCY,
     HTTP_TIMEOUT_S,
     MAX_VISITS_PER_BUILD,
     PIXEL_SCALE_ARCSEC,
+    RAW_CACHE_MAX_BYTES,
     WINDOW_GAP_DAYS,
 )
 from .imaging import (
@@ -130,7 +130,7 @@ def _process_all(visits, ra, dec, fov, progress: Progress, deadline: float | Non
                 r = process_cutout(fut.result(), target, npix)
                 if r["coverage"] >= MIN_COVERAGE:
                     results[i] = r
-            except Exception as exc:  # one bad file must not sink the whole build
+            except Exception as exc:  # noqa: BLE001  one bad file must not sink the whole build
                 failures += 1
                 log.warning("skipping %s: %s", visits[i].obs_id, exc)
             progress(0.1 + 0.8 * done / len(visits), f"Aligned {done}/{len(visits)} SPHEREx images")
@@ -210,7 +210,7 @@ def build_view(
         mjd = float(np.mean([m["mjd"] for m in members]))
         stacks.append({"window": w["id"], "img": img, "var": var, "mjd": mjd, "n": len(members),
                        "um_mean": float(np.mean([m["um_center"] for m in members]))})
-    deep_img, deep_var = weighted_stack([s["img"] for s in stacks], [s["var"] for s in stacks])
+    deep_img, _deep_var = weighted_stack([s["img"] for s in stacks], [s["var"] for s in stacks])
 
     stretch = asinh_stretch_params([s["img"] for s in stacks] + [r["img"] for _, r in frames],
                                    noise_arrays=[s["img"] for s in stacks])

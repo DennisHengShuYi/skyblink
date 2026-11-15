@@ -2,9 +2,9 @@
 import numpy as np
 import pytest
 
-from skyblink.coords import parse_coords
 from skyblink.archive import Visit, dedupe_visits, group_windows
-from skyblink.imaging import asinh_stretch_params, to_uint8, weighted_stack, view_key
+from skyblink.coords import parse_coords
+from skyblink.imaging import asinh_stretch_params, to_uint8, view_key, weighted_stack
 
 
 @pytest.mark.parametrize(
@@ -116,7 +116,7 @@ def test_masked_bilinear_does_not_spread_nan():
 
 def test_reprojection_matches_known_shift():
     """A grid offset by exactly 2 pixels east must pull pixels from 2 columns over."""
-    from skyblink.imaging import grid_wcs, source_pixels, sample_bilinear
+    from skyblink.imaging import grid_wcs, sample_bilinear, source_pixels
     target, n = grid_wcs(10.0, 0.0, 0.05)
     src = target.deepcopy()
     src.wcs.crpix = [src.wcs.crpix[0] + 2, src.wcs.crpix[1]]

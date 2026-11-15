@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import storage
+from .api_common import BuildRequest, router, snap
 from .config import (
     BUILDS_PER_IP_PER_HOUR,
     FEATURED_DIR,
@@ -19,7 +20,6 @@ from .config import (
     FRONTEND_DIR,
     REQUESTS_PER_IP_PER_MINUTE,
 )
-from .api_common import BuildRequest, router, snap
 from .imaging import diff_png, view_key
 from .jobs import JobRegistry, QueueFull
 from .ratelimit import RateLimiter, client_ip

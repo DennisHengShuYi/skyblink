@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from skyblink import storage
-from skyblink.imaging import gray_png, asinh_stretch_params
+from skyblink.imaging import asinh_stretch_params, gray_png
 
 KEY = "abcdef012345-D6"
 
@@ -105,7 +105,8 @@ def test_build_snaps_position_and_queues_once(client, monkeypatch):
 
 
 def test_build_queue_full_returns_429(client, monkeypatch):
-    from skyblink import jobs as jobs_mod, main
+    from skyblink import jobs as jobs_mod
+    from skyblink import main
     monkeypatch.setattr(main.jobs, "_run", lambda *a: None)
     monkeypatch.setattr(jobs_mod, "MAX_PENDING_BUILDS", 2)
     codes = [client.post("/api/build", json={"ra": 10 + i, "dec": 0, "fov": 0.1, "det": "D2"}).status_code
@@ -127,6 +128,7 @@ def test_per_ip_build_limit(client, monkeypatch):
 
 def test_view_lists_sibling_detectors(client, tmp_path):
     import shutil
+
     from skyblink import storage
     src = storage.find_view(KEY)
     other = storage.view_dir("abcdef012345-D2", tmp_path / "cache")

@@ -25,10 +25,10 @@ def _num(s: str) -> float | None:
 def gaia_stars(ra: float, dec: float, radius_deg: float, gmax: float = 19.0) -> list[dict]:
     """Gaia DR3 sources within radius. Empty list (logged) if VizieR is unavailable."""
     adql = (
-        "SELECT TOP {n} source_id, ra, dec, pmra, pmdec, parallax, parallax_over_error, phot_g_mean_mag, bp_rp FROM gaiadr3.gaia_source "
-        "WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.6f}, {dec:.6f}, {r:.5f})) "
-        "AND phot_g_mean_mag < {g} ORDER BY phot_g_mean_mag"
-    ).format(n=MAX_STARS, ra=ra, dec=dec, r=radius_deg, g=gmax)
+        f"SELECT TOP {MAX_STARS} source_id, ra, dec, pmra, pmdec, parallax, parallax_over_error, phot_g_mean_mag, bp_rp FROM gaiadr3.gaia_source "
+        f"WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra:.6f}, {dec:.6f}, {radius_deg:.5f})) "
+        f"AND phot_g_mean_mag < {gmax} ORDER BY phot_g_mean_mag"
+    )
     try:
         r = httpx.post(
             GAIA_TAP_URL,
