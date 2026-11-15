@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { thenTargetFor, moverFor, thenNowGeometry, deepEpoch, badgeText, MIN_SHIFT_PX } from '../../frontend/js/thennow.js';
 
-const manifest = (hash, det) => JSON.parse(readFileSync(new URL(`../../featured/${hash}/${det}/manifest.json`, import.meta.url)));
+const manifest = (hash, det) => JSON.parse(readFileSync(new URL(`../../public/data/${hash}-${det}/manifest.json`, import.meta.url)));
 
 function geometry(hash, det) {
   const view = manifest(hash, det);

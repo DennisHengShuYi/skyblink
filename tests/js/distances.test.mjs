@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { distanceLy, distanceSummary, distanceText, rulerPosition } from '../../frontend/js/distances.js';
 
-const manifest = (hash, det) => JSON.parse(readFileSync(new URL(`../../featured/${hash}/${det}/manifest.json`, import.meta.url)));
+const manifest = (hash, det) => JSON.parse(readFileSync(new URL(`../../public/data/${hash}-${det}/manifest.json`, import.meta.url)));
 
 test('distances only from well-measured parallaxes', () => {
   assert.ok(Math.abs(distanceLy({ parallax: 546.98, parallax_over_error: 2000 }) - 5.96) < 0.01);

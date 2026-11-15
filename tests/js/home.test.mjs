@@ -5,8 +5,8 @@ import { findBirthday, birthdayText, dayOfYear, validBirthday } from '../../fron
 import { puzzleOfDay, answerTrack, checkTap, quarterOf, shareLine, nextStreak, PUZZLES } from '../../frontend/js/puzzle.js';
 
 const calendar = JSON.parse(readFileSync(new URL('../../frontend/calendar.json', import.meta.url)));
-const manifest = (key) => { const [h, d] = key.split('-'); return JSON.parse(readFileSync(new URL(`../../featured/${h}/${d}/manifest.json`, import.meta.url))); };
-const featured = JSON.parse(readFileSync(new URL('../../featured/featured.json', import.meta.url)));
+const manifest = (key) => { const [h, d] = key.split('-'); return JSON.parse(readFileSync(new URL(`../../public/data/${h}-${d}/manifest.json`, import.meta.url))); };
+const featured = JSON.parse(readFileSync(new URL('../../public/data/featured.json', import.meta.url)));
 const keyOf = (slug, det) => `${featured.find((f) => f.slug === slug).key.split('-')[0]}-${det}`;
 
 test('birthday: exact day when SPHEREx pictured something then', () => {

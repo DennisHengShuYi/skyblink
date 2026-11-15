@@ -10,7 +10,7 @@ function f16(h) {
   return s * (1 + f / 1024) * 2 ** (e - 15);
 }
 function deepOf(hash, det) {
-  const dir = new URL(`../../featured/${hash}/${det}/`, import.meta.url);
+  const dir = new URL(`../../public/data/${hash}-${det}/`, import.meta.url);
   const view = JSON.parse(readFileSync(new URL('manifest.json', dir)));
   const buf = readFileSync(new URL('cube.bin', dir));
   const P = view.grid.npix; const N = view.cube.n_visits; const W = view.cube.n_stacks;

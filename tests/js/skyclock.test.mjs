@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { sunPosition, sideOnBaseline, parallaxJump, nextLook, bunchingText, nextLookIcs, dateToMjd, AU_PER_PC } from '../../frontend/js/skyclock.js';
 
-const manifest = (hash, det) => JSON.parse(readFileSync(new URL(`../../featured/${hash}/${det}/manifest.json`, import.meta.url)));
+const manifest = (hash, det) => JSON.parse(readFileSync(new URL(`../../public/data/${hash}-${det}/manifest.json`, import.meta.url)));
 const DEG = 180 / Math.PI;
 
 test('Sun longitude: ~0° at the March equinox, ~90° at the June solstice', () => {

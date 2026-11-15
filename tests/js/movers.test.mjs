@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { motionSummary, motionText, yearsText, watchSpan } from '../../frontend/js/movers.js';
 import { THEN_TARGETS } from '../../frontend/js/thennow.js';
 
-const manifest = (hash, det) => JSON.parse(readFileSync(new URL(`../../featured/${hash}/${det}/manifest.json`, import.meta.url)));
+const manifest = (hash, det) => JSON.parse(readFileSync(new URL(`../../public/data/${hash}-${det}/manifest.json`, import.meta.url)));
 
 test('RW Aurigae: nothing moves; ~190 years per pixel', () => {
   const s = motionSummary(manifest('e5f4784477c4', 'D3'));
