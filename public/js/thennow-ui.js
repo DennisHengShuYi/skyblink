@@ -6,6 +6,7 @@ import {
 } from './thennow.js';
 import { $, toast } from './ui.js';
 
+const REMOTE_TIMEOUT_MS = 12000; // per CDS host; then the next host, then a polite message
 const FLIP_MS = 1000; // one change a second: well under 3 flashes a second
 const HIPS2FITS = ['https://alasky.cds.unistra.fr/hips-image-services/hips2fits', 'https://alaskybis.cds.unistra.fr/hips-image-services/hips2fits'];
 
@@ -25,7 +26,7 @@ async function loadThenImage(view, target) {
   } catch {
     for (const host of HIPS2FITS) {
       try {
-        return await loadImage(liveUrl(view, target, host), { crossOrigin: 'anonymous' });
+        return await loadImage(liveUrl(view, target, host), { crossOrigin: 'anonymous', timeoutMs: REMOTE_TIMEOUT_MS });
       } catch {
         // try the mirror
       }

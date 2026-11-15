@@ -25,13 +25,20 @@ const COLORS = { cross: 'rgba(255, 92, 92, 0.9)', star: 'rgba(92, 225, 255, 0.75
 export { levelsLut };
 export const DEFAULT_DISPLAY = Object.freeze({ smooth: false, brightness: 1, contrast: 1, cmap: 'grey', stretch: 'asinh' });
 
-export function loadImage(src, { crossOrigin = null } = {}) {
+export function loadImage(src, { crossOrigin = null, timeoutMs = 0 } = {}) {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    // A remote service that hangs (CDS during an outage) must not leave a spinner forever.
+    const timer = timeoutMs ? setTimeout(() => {
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
+      reject(new Error(`Timed out loading ${src}`));
+    }, timeoutMs) : null;
     if (crossOrigin) img.crossOrigin = crossOrigin;
     img.decoding = 'async';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Could not load image ${src}`));
+    img.onload = () => { clearTimeout(timer); resolve(img); };
+    img.onerror = () => { clearTimeout(timer); reject(new Error(`Could not load image ${src}`)); };
     img.src = src;
   });
 }

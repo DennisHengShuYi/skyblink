@@ -119,7 +119,7 @@ export function createCompare({ player, current, getCube, onChange = () => {}, e
         img = await withLoading('Fetching the reference image from CDS…', async () => {
           for (const host of HIPS2FITS) {
             try {
-              return await loadImage(referenceUrl(view, survey, size, host), { crossOrigin: 'anonymous' });
+              return await loadImage(referenceUrl(view, survey, size, host), { crossOrigin: 'anonymous', timeoutMs: 12000 });
             } catch {
               // Try the mirror.
             }
