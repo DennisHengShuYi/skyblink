@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { robustStats, findSources, measure, detectFinds } from '../../frontend/js/detect.js';
+import { robustStats, findSources, measure, detectFinds, wavelengthsMatch } from '../../frontend/js/detect.js';
 
 const P = 31;
 const NOISE = 0.01;
@@ -164,13 +164,12 @@ test('detectFinds ignores a big percentage change buried in noise', () => {
   assert.equal(detectFinds(view(), st, deepOf(st), P).length, 0);
 });
 
-test('a saturated star is judged by its outer glow: wings +40% → variable, marked saturated', () => {
-  // RULING (changes the approved test plan): R Dra and RW Aur saturate; their glow still varies.
+test('a saturated star whose wings change by 40% is NOT called variable (glow estimate switched off)', () => {
+  // RULING (reverses the earlier approved glow test): across the 40 pre-built views the glow
+  // estimate flagged 35% of saturated sources, far above what real variables explain.
   const st = [1, 1.2, 1.4].map((k, i) => addSource(noisePlane(20 + i), 15, 15, 400 * k, 5));
   const f = detectFinds(view(), st, deepOf(st), P).filter((x) => x.kind === 'variable');
-  assert.equal(f.length, 1);
-  assert.equal(f[0].saturated, true);
-  assert.ok(Math.abs(f[0].fluxChange - 0.4) < 0.15);
+  assert.equal(f.length, 0);
 });
 
 test('a saturated star with a steady glow is not variable', () => {
@@ -278,4 +277,51 @@ test('a 1.3 px shift measured against a noisier first window is still a mover', 
 test('noise alone in a faint, noisy window does not fake a mover', () => {
   const st = [0, 1, 2].map((i) => addSource(noisePlane(70 + i, i ? 0.01 : 0.03), 15, 15, 0.8));
   assert.equal(detectFinds(view(), st, deepOf(st), P).filter((x) => x.kind === 'moving').length, 0);
+});
+
+const withUm = (ums) => {
+  const v = view();
+  return { ...v, stacks: v.stacks.map((st, i) => ({ ...st, um_mean: ums[i] })) };
+};
+
+test('wavelengthsMatch: 5.5% apart is not a match; 0.4% and 1.8% are', () => {
+  assert.equal(wavelengthsMatch(withUm([4.944, 4.688, 4.718]), 0, 1), false);
+  assert.equal(wavelengthsMatch(withUm([1.989, 1.997, 1.992]), 0, 1), true);
+  assert.equal(wavelengthsMatch(withUm([1.903, 1.937, 1.927]), 0, 1), true);
+});
+
+test('wavelengthsMatch: the 3% edge matches, just over does not', () => {
+  assert.equal(wavelengthsMatch(withUm([2, 2.06, 2]), 0, 1), true);
+  assert.equal(wavelengthsMatch(withUm([2, 2.0601, 2]), 0, 1), false);
+});
+
+test('wavelengthsMatch: a missing or non-numeric wavelength counts as a match', () => {
+  assert.equal(wavelengthsMatch(view(), 0, 1), true);
+  assert.equal(wavelengthsMatch(withUm([undefined, 2, 2]), 0, 1), true);
+  assert.equal(wavelengthsMatch(withUm(['x', 2, 2]), 0, 1), true);
+});
+
+test('a doubling source is marked colour-mismatched only when its windows differ in wavelength', () => {
+  const st = stacksWith([[15, 15], [15, 15], [15, 15]], [1, 1.5, 2]);
+  const bad = detectFinds(withUm([4.944, 4.688, 4.718]), st, deepOf(st), P)[0];
+  assert.equal(bad.kind, 'variable');
+  assert.equal(bad.colourMismatch, true);
+  assert.equal(detectFinds(withUm([1.989, 1.997, 1.992]), st, deepOf(st), P)[0].colourMismatch, false);
+  assert.equal(detectFinds(view(), st, deepOf(st), P)[0].colourMismatch, false);
+});
+
+test('a mover on a still Gaia star keeps no Gaia match but is flagged stillGaia', () => {
+  const st = stacksWith([[14, 15], [15, 15], [16, 15]], [2, 2, 2]);
+  const still = { source_id: 'S', ra: 100, dec: 0, pmra: 0, pmdec: 0 };
+  const f = detectFinds(view([still]), st, deepOf(st), P)[0];
+  assert.equal(f.gaia, null);
+  assert.equal(f.stillGaia, true);
+});
+
+test('stillGaia is false for a mover on a fast Gaia star and for a mover with no Gaia star', () => {
+  const st = stacksWith([[14, 15], [15, 15], [16, 15]], [2, 2, 2]);
+  const yrs = (60983 - 57388.5) / 365.25;
+  const on = { source_id: 'X', ra: 100, dec: -(1000 * yrs) / 3.6e6, pmra: 0, pmdec: 1000 };
+  assert.equal(detectFinds(view([on]), st, deepOf(st), P)[0].stillGaia, false);
+  assert.equal(detectFinds(view([]), st, deepOf(st), P)[0].stillGaia, false);
 });

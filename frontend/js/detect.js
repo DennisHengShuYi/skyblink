@@ -12,9 +12,6 @@ const FIT_MIN_SNR = 1.5; // weaker windows still help the motion fit, weighted b
 const MAX_JUMP_PX = 2.5; // a window centroid further than this from the source is another object
 const DETECT_EDGE_PX = 4; // cutout coverage gets patchy near the edge
 const PSF_SIGMA_PX = 1.0; // centroid error ≈ PSF sigma / SNR
-const GLOW_INNER_PX = 2;
-const GLOW_OUTER_PX = 5;
-const PLATEAU_FRACTION = 0.9; // glow pixels this close to the core level are clipped/filled too
 const VAR_MIN_FRACTION = 0.25;
 const VAR_MIN_SIGMA = 5;
 const GAIA_MATCH_PX = 1.5;
@@ -25,7 +22,19 @@ const DAYS_PER_YEAR = 365.25;
 const SATURATED_VAR_FACTOR = 100; // filled saturated cores carry ~1e4× the typical variance
 const HALO_PX = 12; // glare around a saturated star makes fake movers and variables
 const DUPLICATE_PX = 2;
+export const UM_MATCH_TOLERANCE = 0.03; // windows whose mean wavelengths differ by more than 3% aren't comparable in brightness
 const GAIA_PM_MISMATCH = 0.1; // ″/yr: a measured mover on a Gaia star slower than this is a coincidence
+
+/**
+ * True when stacks `from` and `to` were taken at the same mean wavelength (within 3%), so a
+ * brightness change between them is the source and not the colour. Unknown wavelengths match.
+ */
+export function wavelengthsMatch(view, from, to) {
+  const a = Number(view?.stacks?.[from]?.um_mean);
+  const b = Number(view?.stacks?.[to]?.um_mean);
+  if (!(a > 0) || !(b > 0)) return true;
+  return Math.abs(a - b) / Math.min(a, b) <= UM_MATCH_TOLERANCE + 1e-9; // epsilon: 2 vs 2.06 is exactly 3%
+}
 
 function median(values) {
   if (!values.length) return NaN;
@@ -121,40 +130,6 @@ export function measure(plane, P, x, y, r = APERTURE_R) {
   }
   if (masked > n / 2 || wsum <= 0) return { cx: x0, cy: y0, flux: NaN, ok: false };
   return { cx: sx / wsum, cy: sy / wsum, flux, ok: true };
-}
-
-/**
- * Brightness of a saturated star from its outer glow: background-subtracted flux in an
- * annulus (2–5 px) around the core, skipping pixels at the clipped/filled plateau level.
- */
-export function measureGlow(plane, P, x, y) {
-  const ring = [];
-  const glow = [];
-  const reach = Math.ceil(GLOW_OUTER_PX) + 3;
-  let core = -Infinity;
-  for (let dy = -1; dy <= 1; dy += 1) {
-    for (let dx = -1; dx <= 1; dx += 1) {
-      const v = plane[(Math.round(y) + dy) * P + Math.round(x) + dx];
-      if (Number.isFinite(v)) core = Math.max(core, v);
-    }
-  }
-  for (let dy = -reach; dy <= reach; dy += 1) {
-    for (let dx = -reach; dx <= reach; dx += 1) {
-      const px = Math.round(x) + dx;
-      const py = Math.round(y) + dy;
-      if (px < 0 || py < 0 || px >= P || py >= P) continue;
-      const v = plane[py * P + px];
-      if (!Number.isFinite(v)) continue;
-      const d = Math.hypot(px - x, py - y);
-      if (d >= GLOW_INNER_PX && d <= GLOW_OUTER_PX) {
-        if (v < PLATEAU_FRACTION * core) glow.push(v);
-      }
-      else if (d >= GLOW_OUTER_PX + 1.5 && d <= GLOW_OUTER_PX + 3) ring.push(v);
-    }
-  }
-  if (glow.length < 8) return { cx: x, cy: y, flux: NaN, ok: false, n: glow.length };
-  const bg = ring.length ? median(ring) : 0;
-  return { cx: x, cy: y, flux: glow.reduce((a, v) => a + (v - bg), 0), ok: true, n: glow.length };
 }
 
 /** Re-centre on this stack's own peak (a mover is off the deep position) and measure. */
@@ -311,8 +286,9 @@ export function detectFinds(view, stackPlanes, deep, P, { saturated: satMask = n
     const fastGaia = gaia && totalPm(gaia) >= SATURATED_PM_ARCSEC;
     const significant = motion && motion.shift >= MOVE_MIN_PX && motion.shift >= MOVE_MIN_SIGMAS * motion.err;
     const moving = significant && (!saturated || fastGaia);
-    if (moving && gaia && totalPm(gaia) < GAIA_PM_MISMATCH) gaia = null; // coincidence with a still star
-    const base = { x, y, snr: src.snr, saturated, gaia };
+    const stillGaia = Boolean(moving && gaia && totalPm(gaia) < GAIA_PM_MISMATCH);
+    if (stillGaia) gaia = null; // coincidence with a still star
+    const base = { x, y, snr: src.snr, saturated, gaia, stillGaia };
     if (moving) {
       finds.push({
         ...base, kind: 'moving', shiftPx: motion.shift, fluxChange: 0, from: motion.from, to: motion.to,
@@ -320,16 +296,17 @@ export function detectFinds(view, stackPlanes, deep, P, { saturated: satMask = n
       });
       return;
     }
-    // Saturated cores are clipped/filled: judge their brightness by the outer glow instead.
-    const glow = saturated ? stackPlanes.map((plane) => measureGlow(plane, P, x, y)) : null;
-    const glowNoise = glow ? sigmas.map((sg, i) => (sg > 0 ? sg : Infinity) * Math.sqrt(glow[i].n || 1)) : null;
-    const change = saturated ? bestChange(glow, glowNoise) : bestChange(ms, boxNoise);
+    // Saturated cores are clipped or filled, so their brightness can't be compared: no variable find.
+    // (An outer-glow estimate flagged 35% of saturated sources across the 40 pre-built views.)
+    if (saturated) return;
+    const change = bestChange(ms, boxNoise);
     if (!change) return;
     const fraction = Math.abs(change.delta) / Math.min(change.a, change.b);
     if (fraction >= VAR_MIN_FRACTION && change.sig >= VAR_MIN_SIGMA) {
       finds.push({
         ...base, kind: 'variable', shiftPx: 0, arcsecPerYr: 0,
         fluxChange: change.delta / change.a, from: change.from, to: change.to,
+        colourMismatch: !wavelengthsMatch(view, change.from, change.to),
       });
     }
   });
