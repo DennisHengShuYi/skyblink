@@ -10,7 +10,21 @@ const MIN_PM_ARCSEC = 0.02;
 const THIS_YEAR = 2026;
 const LOOKBACK_MAX_LY = 500;
 
-export const NOT_IN_GAIA = "Not seen by Gaia in visible light — it's very cold, very faint, or hidden behind dust. Brown dwarfs look like this.";
+export const NOT_IN_GAIA = "Not in SkyBlink's Gaia star list for this field — it may be very cold, very faint, or hidden behind dust. Brown dwarfs look like this.";
+const EMPTY_SNR = 5;
+
+/**
+ * Headline for a clicked spot with no catalogued star: an untracked mover, an unmeasurable
+ * pixel (no data yet, or a Difference/Reference view), empty sky, or an uncatalogued source.
+ */
+export function objectHeadline({ mover, snr }) {
+  if (mover) return { title: `Moving object — about ${Number(mover.arcsecPerYr).toFixed(1)}″ a year`, body: NOT_IN_GAIA };
+  if (snr === null || !Number.isFinite(snr)) {
+    return { title: "Can't measure here in this view", body: 'Switch back to the animation and click again to read this spot.' };
+  }
+  if (snr < EMPTY_SNR) return { title: 'Mostly empty sky', body: 'Nothing bright enough to stand out here. Try clicking one of the dots.' };
+  return { title: "Something not in SkyBlink's Gaia list", body: NOT_IN_GAIA };
+}
 
 const usable = (plx) => Number.isFinite(plx) && plx > 0;
 

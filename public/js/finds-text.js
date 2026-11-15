@@ -2,6 +2,12 @@
 // Copy rule: say "candidate", never "discovery".
 
 const FAST_ARCSEC_PER_YR = 1;
+const REVEAL_FROM = new Set(['tab-info', 'tab-finds', undefined, null]);
+
+/** Tab to switch to after an image click: Finds, unless the user is reading Spectrum/Light curve/Atlas. */
+export function revealTabFor(activeTabId) {
+  return REVEAL_FROM.has(activeTabId) ? 'tab-finds' : null;
+}
 
 function dateOf(view, stackIndex) {
   const s = (view?.stacks || [])[stackIndex];

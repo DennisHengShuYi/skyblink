@@ -9,7 +9,7 @@ const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').match
  * ctx: {player, compare, ensureStacks(), selectSideTab(id), setGaia(on), pulse()}
  * Returns false when the slug has no tour.
  */
-export function startTour(slug, ctx) {
+export async function startTour(slug, ctx) {
   const steps = TOURS[slug];
   if (!steps) return false;
   const panel = $('tour');
@@ -62,7 +62,7 @@ export function startTour(slug, ctx) {
   $('tour-next').onclick = () => { if (k < steps.length - 1) { k += 1; show(); } else close(); };
   $('tour-exit').onclick = close;
   document.addEventListener('keydown', onKey);
-  ctx.ensureStacks();
+  await ctx.ensureStacks(); // stacked frames must be loaded before step actions run
   panel.hidden = false;
   show();
   $('tour-next').focus();

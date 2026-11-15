@@ -35,3 +35,13 @@ test('a saturated variable says the change is estimated from its glow', () => {
   const d = describeFind({ kind: 'variable', fluxChange: -0.69, from: 0, to: 1, saturated: true }, view);
   assert.match(d.body, /glow/);
 });
+
+// Added in the final-review fix pass.
+import { revealTabFor } from '../../frontend/js/finds-text.js';
+
+test('clicking reveals the Finds tab only from Frame info / Finds, never from Spectrum, Light curve or Atlas', () => {
+  assert.equal(revealTabFor('tab-info'), 'tab-finds');
+  assert.equal(revealTabFor('tab-finds'), 'tab-finds');
+  assert.equal(revealTabFor(undefined), 'tab-finds');
+  ['tab-spec', 'tab-lc', 'tab-atlas'].forEach((t) => assert.equal(revealTabFor(t), null));
+});

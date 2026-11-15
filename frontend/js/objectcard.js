@@ -2,10 +2,9 @@
 // date, described in plain words (describe.js), plus listen / spectrum buttons.
 import { el } from './ui.js';
 import { starGeometry, frameSpan, nearestStar as nearestGeo } from './gaia.js';
-import { starType, distanceText, speedText, NOT_IN_GAIA } from './describe.js';
+import { starType, distanceText, speedText, objectHeadline } from './describe.js';
 
 const MATCH_PX = 2;
-const EMPTY_SNR = 5;
 
 /** The Gaia star nearest grid pixel (x, y) at `mjd`, within `tolPx`; null if none. */
 export function nearestStar(view, x, y, mjd, tolPx = MATCH_PX) {
@@ -32,15 +31,10 @@ export function renderObjectCard(container, ctx) {
     title = type ? type.label : 'A star catalogued by Gaia';
     if (type) lines.push(type.blurb);
     [distanceText(star.parallax), speedText(star)].filter(Boolean).forEach((t) => lines.push(t));
-  } else if (ctx.untrackedMover) {
-    title = `Moving object — about ${ctx.untrackedMover.arcsecPerYr.toFixed(1)}″ a year`;
-    lines.push(NOT_IN_GAIA);
-  } else if (snr !== null && snr < EMPTY_SNR) {
-    title = 'Mostly empty sky';
-    lines.push('Nothing bright enough to stand out here. Try clicking one of the dots.');
   } else {
-    title = 'Something Gaia has not catalogued';
-    lines.push(NOT_IN_GAIA);
+    const h = objectHeadline({ mover: ctx.untrackedMover, snr });
+    title = h.title;
+    lines.push(h.body);
   }
   if (ctx.caption) lines.unshift(ctx.caption);
   const words = el('p', { class: 'card-words hint' }, 'Reading its infrared colours…');

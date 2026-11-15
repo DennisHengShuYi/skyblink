@@ -5,6 +5,7 @@ import * as api from './api.js';
 import { $, el, toast } from './ui.js';
 import { detectFinds, saturationMask } from './detect.js';
 import { renderFinds, findsDecorator } from './finds-ui.js';
+import { revealTabFor } from './finds-text.js';
 import { renderObjectCard } from './objectcard.js';
 import { spectrumWords } from './describe.js';
 import { loadColour, COLOUR_DETS } from './colour.js';
@@ -116,7 +117,8 @@ export function mountBeginner(ctx) {
       onHearSpectrum: (t) => hearSpectrum(pixel, t),
       onShowSpectrum: () => ctx.selectSideTab('tab-spec'),
     });
-    ctx.selectSideTab('tab-finds');
+    const tab = revealTabFor(document.querySelector('.side [aria-selected="true"]')?.id);
+    if (tab) ctx.selectSideTab(tab);
   }
 
   // ---------- finds ----------
@@ -133,14 +135,21 @@ export function mountBeginner(ctx) {
       const variances = Array.from({ length: cube.N }, (_, i) => cube.variance(i));
       finds = detectFinds(view, stacks, cube.deep(), cube.P, { saturated: saturationMask(variances, cube.P) });
     } catch {
+      if (ctx.current().view !== view) return; // a newer view owns the list now
+      findsKey = null; // allow a retry next time this view loads
       finds = [];
+      $('finds-list').replaceChildren(el('li', { class: 'hint' }, "Couldn't check this view for changes: its pixel data didn't load. Try reloading it."));
+      $('finds-count').textContent = '';
+      player.render();
+      return;
     }
+    if (ctx.current().view !== view) return;
     renderFinds($('finds-list'), finds, view, {
       onPick: async (f) => {
         const pixel = { x: Math.round(f.x), y: Math.round(f.y) };
+        await ctx.ensureStacks(); // wait for stacked frames before choosing the blink pair
         player.select(pixel);
         onPixel(pixel);
-        ctx.ensureStacks();
         await ctx.compare.pair('blink', f.from, f.to);
       },
       onHear: (f) => hearBrightness({ x: Math.round(f.x), y: Math.round(f.y) }, $('finds-sound')),

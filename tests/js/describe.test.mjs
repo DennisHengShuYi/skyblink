@@ -85,3 +85,23 @@ test('spectrum words: too few points on one side → null; NaN ignored', () => {
 test('not-in-Gaia text mentions brown dwarfs', () => {
   assert.match(NOT_IN_GAIA, /Brown dwarfs/);
 });
+
+// Added in the final-review fix pass.
+import { objectHeadline } from '../../frontend/js/describe.js';
+
+test('headline: an untracked mover is described as a moving object', () => {
+  const h = objectHeadline({ mover: { arcsecPerYr: 8.04 }, snr: 15 });
+  assert.match(h.title, /Moving object — about 8\.0″ a year/);
+  assert.match(h.body, /Brown dwarfs/);
+});
+
+test('headline: unmeasurable pixel (no data / override) is neutral, not "brown dwarf"', () => {
+  const h = objectHeadline({ mover: null, snr: null });
+  assert.match(h.title, /Can't measure/);
+  assert.doesNotMatch(h.body, /Brown dwarf/);
+});
+
+test('headline: faint pixel is empty sky; bright uncatalogued is "not in SkyBlink\'s Gaia list"', () => {
+  assert.match(objectHeadline({ mover: null, snr: 2 }).title, /empty sky/);
+  assert.match(objectHeadline({ mover: null, snr: 40 }).title, /not in SkyBlink's Gaia list/);
+});

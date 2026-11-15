@@ -62,7 +62,12 @@ const analysis = createAnalysis({
 });
 const beginner = mountBeginner({
   player, compare, current, getCube, selectSideTab, getState: () => state, featured: () => featuredList,
-  ensureStacks: () => { if (state.mode !== 'stack') { setMode('stack'); changeMode('stack'); } },
+  ensureStacks: async () => {
+    if (state.mode === 'stack') return;
+    update({ mode: 'stack', frame: 0 });
+    setMode('stack');
+    await loadFrames(gen, false);
+  },
   pick: (t) => pickFeatured(t),
 });
 
