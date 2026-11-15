@@ -77,12 +77,12 @@ export function spectrumSeries(points) {
 }
 
 /**
- * What a Hear button should do: `current` is {textEl} for the sound now playing (or null),
- * `textEl` is the caption element of the button that was pressed.
+ * What a Hear button should do: `current` is {owner} for the sound now playing (or null),
+ * `owner` identifies the button that was pressed (buttons can share one caption element).
  */
-export function soundAction(current, textEl) {
+export function soundAction(current, owner) {
   if (!current) return 'start';
-  return current.textEl === textEl ? 'toggle-off' : 'switch';
+  return current.owner === owner ? 'toggle-off' : 'switch';
 }
 
 /** Play notes. Returns {stop()} or null if audio is unavailable or blocked. Never throws. */

@@ -70,8 +70,8 @@ export function mountBeginner(ctx) {
   }
 
   // One sound at a time: the same button stops it, another button switches to its own sound.
-  function hear(values, label, textEl) {
-    const action = soundAction(sound, textEl);
+  function hear(values, label, textEl, owner) {
+    const action = soundAction(sound, owner);
     stopSound();
     if (action === 'toggle-off') return;
     const words = `Sound: ${label} ${describeSound(values)}.`;
@@ -81,26 +81,26 @@ export function mountBeginner(ctx) {
       textEl.textContent = `${words} (Sound isn't available in this browser.)`;
       return;
     }
-    const mine = { handle, textEl, timer: null };
+    const mine = { handle, textEl, owner, timer: null };
     mine.timer = setTimeout(() => { if (sound === mine) sound = null; }, handle.durationMs + 400);
     sound = mine;
   }
 
-  async function hearBrightness(pixel, textEl) {
+  async function hearBrightness(pixel, textEl, owner) {
     const { view } = ctx.current();
     try {
       const cube = await ctx.getCube(view);
-      hear(lightcurve(cube, view, pixel.x, pixel.y), 'its brightness over time', textEl);
+      hear(lightcurve(cube, view, pixel.x, pixel.y), 'its brightness over time', textEl, owner);
     } catch (err) {
       textEl.textContent = err.message || 'No pixel data for sound.';
     }
   }
 
-  async function hearSpectrum(pixel, textEl) {
+  async function hearSpectrum(pixel, textEl, owner) {
     const { view } = ctx.current();
     try {
       const { points } = await gatherSpectrum(view, pixel.x, pixel.y, { allBands: true });
-      hear(spectrumSeries(points), 'from short to long wavelength, its brightness', textEl);
+      hear(spectrumSeries(points), 'from short to long wavelength, its brightness', textEl, owner);
     } catch (err) {
       textEl.textContent = err.message || 'No spectrum for sound.';
     }
@@ -128,8 +128,8 @@ export function mountBeginner(ctx) {
         label: readColoursLabel(extraBands(view).length, cubeMegabytes(view)),
         load: () => gatherSpectrum(view, pixel.x, pixel.y, { allBands: true }).then((r) => spectrumWords(r.points)),
       },
-      onHearBrightness: (t) => hearBrightness(pixel, t),
-      onHearSpectrum: (t) => hearSpectrum(pixel, t),
+      onHearBrightness: (t) => hearBrightness(pixel, t, 'card-brightness'),
+      onHearSpectrum: (t) => hearSpectrum(pixel, t, 'card-spectrum'),
       onShowSpectrum: () => ctx.selectSideTab('tab-spec'),
     });
     const tab = revealTabFor(document.querySelector('.side [aria-selected="true"]')?.id);
@@ -167,7 +167,7 @@ export function mountBeginner(ctx) {
         onPixel(pixel);
         await ctx.compare.pair('blink', f.from, f.to);
       },
-      onHear: (f) => hearBrightness({ x: Math.round(f.x), y: Math.round(f.y) }, $('finds-sound')),
+      onHear: (f) => hearBrightness({ x: Math.round(f.x), y: Math.round(f.y) }, $('finds-sound'), `find-${f.id}`),
     });
     $('finds-count').textContent = finds.length ? `(${finds.length})` : '';
     player.render();
@@ -297,7 +297,7 @@ export function mountBeginner(ctx) {
       toast('Click a pixel first, then listen to its spectrum.');
       return;
     }
-    hearSpectrum(p, $('spec-sound'));
+    hearSpectrum(p, $('spec-sound'), 'spectrum-tab');
   });
 
   return {

@@ -55,10 +55,8 @@ test('play returns null when audio is unavailable', () => {
   if (saved) globalThis.AudioContext = saved;
 });
 
-test('soundAction: start when silent, toggle off from the same button, switch from another', () => {
-  const a = {};
-  const b = {};
-  assert.equal(soundAction(null, a), 'start');
-  assert.equal(soundAction({ textEl: a }, a), 'toggle-off');
-  assert.equal(soundAction({ textEl: a }, b), 'switch');
+test('soundAction: start when silent, toggle off from the same button, switch from another (even with one shared caption)', () => {
+  assert.equal(soundAction(null, 'card-brightness'), 'start');
+  assert.equal(soundAction({ owner: 'card-brightness' }, 'card-brightness'), 'toggle-off');
+  assert.equal(soundAction({ owner: 'card-brightness' }, 'card-spectrum'), 'switch');
 });
