@@ -82,6 +82,11 @@ export async function gatherSpectrum(view, x, y, { r = 0, allBands = false } = {
   return { points: points.sort((a, b) => a.um - b.um), failed: failed.filter(Boolean) };
 }
 
+/** [{det, view: Promise}] for every detector at this position (current, session builds, siblings). */
+export function detectorViews(view) {
+  return sources(view, true);
+}
+
 /** Detectors that open instantly at this view's position: itself, pre-built siblings, session builds. */
 export function builtDetectors(view) {
   return new Set([detOf(view), ...Object.keys(view.siblings || {}), ...(sessionViews.get(positionKey(view)) || new Map()).keys()]);

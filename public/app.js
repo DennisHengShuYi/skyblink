@@ -15,6 +15,7 @@ import { unproject } from './js/gaia.js';
 import { suggestNames, addRecent } from './js/search.js';
 import { showAladin, setSurvey, drawFootprint, markSelection } from './js/aladin.js';
 import { downloadBlob, canvasPng, recordFrames, videoSupported, fileStem } from './js/exporter.js';
+import { mountBeginner } from './js/beginner.js';
 import {
   $, el, toast, copyText, setupTabs, setupRadioGroup, renderGallery, frameTitle,
   renderTicks, setActiveTick, renderTimeStrip, setActiveDot, renderMeta,
@@ -38,7 +39,8 @@ let build = null; // {abort, timer}
 let shownTarget = null; // target name of the view on screen (restored on cancel)
 
 const player = new Player($('canvas'), {
-  onFrame, onPlayState, onPixel: (p) => analysis.pick(p), onHover: (...a) => controls.onHover(...a),
+  onFrame, onPlayState, onHover: (...a) => controls.onHover(...a),
+  onPixel: (p) => { analysis.pick(p, { reveal: false }); beginner.onPixel(p); },
   onSwipe: (d) => { leaveCompare(); player.step(d); },
 });
 const current = () => ({ view, frames, mode: state.mode, frame: player.frame, target: $('view-title').textContent });
@@ -50,10 +52,18 @@ const update = (patch) => {
 const setMode = setupRadioGroup($('mode-group'), 'mode', (m) => changeMode(m));
 const selectSideTab = setupTabs(document.querySelector('.side [role="tablist"]'), onSideTab);
 const controls = createControls(player, { current, update });
-const compare = createCompare({ player, current, getCube, onChange: (s) => update(s) });
+const compare = createCompare({
+  player, current, getCube, onChange: (s) => update(s),
+  extraTools: { colour: { enter: () => beginner.colour.enter(), leave: () => beginner.colour.leave() } },
+});
 const analysis = createAnalysis({
   player, current, getCube, showTab: (id) => selectSideTab(id), onJump: jumpToVisit,
   onChange: (p, ap) => update({ px: p ? p.x : null, py: p ? p.y : null, ap }),
+});
+const beginner = mountBeginner({
+  player, compare, current, getCube, selectSideTab, getState: () => state, featured: () => featuredList,
+  ensureStacks: () => { if (state.mode !== 'stack') { setMode('stack'); changeMode('stack'); } },
+  pick: (t) => pickFeatured(t),
 });
 
 // ---------- status and errors ----------
@@ -274,6 +284,7 @@ async function loadFrames(myGen = gen, fresh = false, { visit = null } = {}) {
   compare.fillSelects(restore ? state : {});
   controls.drawColorbar();
   onFrame(player.index, player.frame);
+  beginner.onFramesLoaded();
   const v = view;
   getCube(v).then((cube) => { if (view === v) player.setCube(cube); }).catch(() => {
     // Without the cube the PNG frames still play; differences/spectra explain the failure themselves.
@@ -554,6 +565,7 @@ function goHome() {
   hideStatus();
   $('viewer').hidden = true;
   $('home').hidden = false;
+  beginner.onHome();
   document.title = 'SkyBlink: watch the infrared sky change';
   syncDetectors();
 }

@@ -27,6 +27,32 @@ export function stretchByte(value, { lo, hi, soft }) {
   return Math.round((Math.asinh(x / soft) / Math.asinh(1 / soft)) * 255);
 }
 
+const SKY_LO_SIGMA = 2;
+const SOFT_SIGMA = 2.5;
+const WHITE_PCT = 0.995;
+
+function sortedFinite(plane) {
+  const v = [];
+  for (let i = 0; i < plane.length; i += 1) if (Number.isFinite(plane[i])) v.push(plane[i]);
+  return v.sort((a, b) => a - b);
+}
+
+/**
+ * A balanced stretch for one colour channel from its deep plane: sky just above black,
+ * the field's bright stars (99.5th percentile) near white, curve bend at 2.5σ — so ordinary
+ * stars come out roughly neutral and truly red or blue objects stand out.
+ */
+export function channelStretch(deep) {
+  const v = sortedFinite(deep);
+  if (!v.length) return { lo: 0, hi: 1, soft: 0.1 };
+  const med = v[v.length >> 1];
+  const dev = v.map((x) => Math.abs(x - med)).sort((a, b) => a - b);
+  const sigma = 1.4826 * dev[dev.length >> 1] || 1e-6;
+  const lo = med - SKY_LO_SIGMA * sigma;
+  const hi = Math.max(v[Math.min(v.length - 1, Math.floor(WHITE_PCT * v.length))], lo + 50 * sigma);
+  return { lo, hi, soft: Math.min(0.5, Math.max(1e-5, (SOFT_SIGMA * sigma) / (hi - lo))) };
+}
+
 /** RGBA bytes for a P×P colour image from three float planes and their stretches. */
 export function colourPixels(planes, stretches, P) {
   const out = new Uint8ClampedArray(P * P * 4);
@@ -70,7 +96,8 @@ export async function loadColour(view, detectorList) {
   }));
   const P = channels.r.cube.P;
   if (channels.g.cube.P !== P || channels.b.cube.P !== P) throw new Error('These detectors were built on different grids.');
-  const stretches = { r: channels.r.view.stretch, g: channels.g.view.stretch, b: channels.b.view.stretch };
+  // Balanced per-channel scales (fixed for every frame of the colour animation).
+  const stretches = { r: channelStretch(channels.r.cube.deep()), g: channelStretch(channels.g.cube.deep()), b: channelStretch(channels.b.cube.deep()) };
   const refMjds = (view.stacks || []).map((s) => Number(s.mjd));
   const matched = {};
   Object.entries(channels).forEach(([ch, { view: v }]) => {

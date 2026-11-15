@@ -49,3 +49,23 @@ test('colourPixels: a masked pixel in one channel does not blank the others', ()
   assert.equal(px[1], 255);
   assert.equal(px[2], 255);
 });
+
+// Added after the browser check (flagged in the report): balanced per-channel scales.
+import { channelStretch } from '../../frontend/js/colour.js';
+
+test('channelStretch balances bands: the same relative signal gives the same byte', () => {
+  const field = (scale) => {
+    const p = new Float32Array(400);
+    for (let i = 0; i < p.length; i += 1) p[i] = ((i * 7919) % 101 - 50) / 5000 * scale; // ±0.01·scale noise
+    for (let i = 0; i < 6; i += 1) p[50 * i + 25] = 2 * scale; // a few stars
+    p[210] = 0.3 * scale; // a faint source
+    return p;
+  };
+  const a = field(1);
+  const b = field(5);
+  const sa = channelStretch(a);
+  const sb = channelStretch(b);
+  assert.equal(stretchByte(a[210], sa), stretchByte(b[210], sb));
+  assert.ok(stretchByte(0, sa) < 60, 'sky stays dark');
+  assert.ok(stretchByte(a[25], sa) > 230, 'bright stars near white');
+});

@@ -85,6 +85,17 @@
         <p>SPHEREx is a NASA space telescope that photographs the whole sky in 102 infrared colours, coming back to every spot about every six months. SkyBlink lines up those pictures of one small patch and plays them as a flip-book.</p>
         <p><strong>Each frame is one SPHEREx look at this patch of sky. Things that jump between frames are moving.</strong> Things that get brighter and fainter are variable.</p>
       </div>
+      <h2 class="section-title">Popular sights <span class="hint">— no coordinates needed</span></h2>
+      <ul class="chips" id="sights"></ul>
+      <p><button type="button" class="btn btn-ghost" id="sky-pick">Pick a spot on the sky map</button></p>
+      <div class="sky-picker card" id="sky-picker" role="dialog" aria-modal="false" aria-labelledby="sky-picker-title" hidden>
+        <div class="sky-picker-head">
+          <h3 id="sky-picker-title">Pick any spot</h3>
+          <button type="button" class="btn btn-ghost" id="sky-close">Close</button>
+        </div>
+        <p class="hint" id="sky-picker-msg"></p>
+        <div class="sky-map" id="sky-map"></div>
+      </div>
       <h2 class="section-title">Featured targets</h2>
       <ul class="gallery" id="gallery" aria-live="polite">
         <li class="card skeleton" aria-hidden="true"></li>
@@ -93,6 +104,16 @@
       </ul>
     </section>
 
+    <div class="tour card" id="tour" role="dialog" aria-modal="false" aria-labelledby="tour-step" hidden>
+      <p class="tour-step" id="tour-step"></p>
+      <p class="tour-text" id="tour-text" aria-live="polite"></p>
+      <div class="tour-actions">
+        <button type="button" class="btn btn-ghost" id="tour-back">Back</button>
+        <button type="button" class="btn btn-primary" id="tour-next">Next</button>
+        <button type="button" class="btn btn-ghost" id="tour-exit">Exit tour</button>
+      </div>
+    </div>
+
     <section class="viewer" id="viewer" hidden aria-labelledby="view-title">
       <div class="viewer-head">
         <div>
@@ -100,6 +121,7 @@
           <p class="coords" id="view-coords"></p>
         </div>
         <div class="share">
+          <button type="button" class="btn btn-primary" id="tour-start" hidden>Take the tour</button>
           <button type="button" class="btn btn-ghost" id="copy-link">Copy link</button>
           <button type="button" class="btn btn-ghost" id="copy-embed">Copy embed code</button>
           <a class="btn btn-ghost embed-only" id="open-full" target="_blank" rel="noopener">Open in SkyBlink ↗</a>
@@ -120,6 +142,7 @@
                 <button type="button" role="radio" data-tool="diff" aria-checked="false">Difference</button>
                 <button type="button" role="radio" data-tool="deep" aria-checked="false">Deep stack</button>
                 <button type="button" role="radio" data-tool="reference" aria-checked="false">Reference</button>
+                <button type="button" role="radio" data-tool="colour" aria-checked="false">Colour</button>
               </div>
             </div>
             <div class="tool-panel" data-panel="animate" hidden></div>
@@ -158,6 +181,10 @@
             </div>
             <div class="tool-panel" data-panel="deep" hidden>
               <p class="hint" id="deep-info">All images added together: the deepest, least noisy view. Moving objects smear out.</p>
+            </div>
+            <div class="tool-panel" data-panel="colour" hidden>
+              <p class="hint" id="colour-msg">D1 (blue), D3 (green) and D6 (red) combined into one colour picture.</p>
+              <button type="button" class="btn btn-ghost" id="colour-build" hidden>Build the missing bands</button>
             </div>
             <div class="tool-panel" data-panel="reference" hidden>
               <div class="field-inline">
@@ -275,6 +302,7 @@
                 </select>
               </div>
               <label class="check" id="flags-label"><input type="checkbox" id="ov-flags"> Flagged pixels</label>
+              <label class="check"><input type="checkbox" id="ov-finds" checked> Rings on finds</label>
             </div>
             <div class="overlay-controls" role="group" aria-label="Gaia stars">
               <label class="check"><input type="checkbox" id="ov-stars"> Gaia stars and their motion</label>
@@ -304,18 +332,28 @@
           <div class="export-row" role="group" aria-label="Save">
             <button type="button" class="btn btn-ghost" id="save-png">Save image (PNG)</button>
             <button type="button" class="btn btn-ghost" id="save-video">Record animation (video)</button>
+            <button type="button" class="btn btn-ghost" id="save-gif">Share as GIF</button>
+            <button type="button" class="btn btn-ghost" id="save-card">Share picture card</button>
           </div>
         </div>
 
         <aside class="side card" aria-label="Details">
           <div class="tabs" role="tablist" aria-label="Details">
             <button type="button" role="tab" id="tab-info" aria-controls="panel-info" aria-selected="true">Frame info</button>
+            <button type="button" role="tab" id="tab-finds" aria-controls="panel-finds" aria-selected="false" tabindex="-1">Finds <span id="finds-count"></span></button>
             <button type="button" role="tab" id="tab-spec" aria-controls="panel-spec" aria-selected="false" tabindex="-1">Spectrum</button>
             <button type="button" role="tab" id="tab-lc" aria-controls="panel-lc" aria-selected="false" tabindex="-1">Light curve</button>
             <button type="button" role="tab" id="tab-atlas" aria-controls="panel-atlas" aria-selected="false" tabindex="-1">Sky atlas</button>
           </div>
           <div class="tab-panel" role="tabpanel" id="panel-info" aria-labelledby="tab-info" tabindex="0">
             <dl class="meta" id="meta"></dl>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="panel-finds" aria-labelledby="tab-finds" tabindex="0" hidden>
+            <div id="object-card"><p class="hint">Click anything in the image and SkyBlink will tell you what it is.</p></div>
+            <h3 class="finds-title">Things that moved or changed</h3>
+            <ol class="finds" id="finds-list"></ol>
+            <p class="hint sound-text" id="finds-sound" aria-live="polite"></p>
+            <p class="hint">Finds are automatic candidates, not discoveries: check them with Blink and Difference.</p>
           </div>
           <div class="tab-panel" role="tabpanel" id="panel-spec" aria-labelledby="tab-spec" tabindex="0" hidden>
             <p class="hint" id="spec-hint">Click any pixel in the image to see how bright it is at each infrared wavelength.</p>
@@ -343,6 +381,8 @@
             <div class="analysis-controls">
               <button type="button" class="btn btn-ghost" id="spec-all" hidden>Add other bands</button>
               <button type="button" class="btn btn-ghost" id="spec-csv" disabled>Download CSV</button>
+              <button type="button" class="btn btn-ghost" id="spec-hear">Hear it</button>
+              <span class="hint sound-text" id="spec-sound" aria-live="polite"></span>
             </div>
             <p class="hint">Hollow points are saturated star cores filled in by the pipeline: not real measurements. Spectra are a visualization from IRSA's per-pixel wavelength map, not science-grade photometry.</p>
           </div>

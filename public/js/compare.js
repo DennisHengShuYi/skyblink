@@ -35,7 +35,7 @@ export function referenceUrl(view, survey, size, host = HIPS2FITS[0]) {
  * @param {(view: object) => Promise<object>} ctx.getCube
  * @param {(state: {tool: string, a: number|null, b: number|null}) => void} ctx.onChange
  */
-export function createCompare({ player, current, getCube, onChange = () => {} }) {
+export function createCompare({ player, current, getCube, onChange = () => {}, extraTools = {} }) {
   let tool = 'animate';
   const setTool = setupRadioGroup($('tool-group'), 'tool', (t) => selectTool(t));
   const refCache = new Map();
@@ -64,6 +64,7 @@ export function createCompare({ player, current, getCube, onChange = () => {} })
   }
 
   function applyTool(t) {
+    if (tool !== t) extraTools[tool]?.leave?.();
     tool = t;
     document.querySelectorAll('.tool-panel').forEach((p) => { p.hidden = p.dataset.panel !== t || !p.childElementCount; });
     player.stopBlink();
@@ -135,6 +136,10 @@ export function createCompare({ player, current, getCube, onChange = () => {} })
     player.pause();
     if (t === 'deep') await showDeep();
     if (t === 'reference') await showReference();
+    if (extraTools[t]) {
+      const badge = await extraTools[t].enter();
+      if (tool === t && badge) setBadge(badge);
+    }
   }
 
   function startBlink() {
@@ -241,6 +246,11 @@ export function createCompare({ player, current, getCube, onChange = () => {} })
       await selectTool(t);
       if (run && t === 'blink') startBlink();
       if (run && t === 'diff') await showDiff();
+    },
+    /** Blink or difference two given frames (indices into the current frame list). */
+    async pair(t, a, b) {
+      [`${t}-a`, `${t}-b`].forEach((id, k) => { $(id).value = String(k ? b : a); });
+      await this.select(t, { run: true });
     },
     toggleBlink() {
       if (tool !== 'blink') {

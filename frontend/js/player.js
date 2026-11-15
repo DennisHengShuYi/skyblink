@@ -57,6 +57,8 @@ export class Player {
     this.blinkPair = null;
     this.override = null;
     this.overlays = { flags: false, stars: false, exaggeration: 10, gmax: 21, minPm: 0, cross: 'cross' };
+    this.decorators = []; // extra overlays drawn after the stars: fn(ctx, player)
+    this.frameImages = null; // optional replacement images per frame (false-colour view)
     this.display = { ...DEFAULT_DISPLAY };
     this.selected = null;
     this.hoverStar = null;
@@ -353,9 +355,21 @@ export class Player {
     return grey;
   }
 
+  /** Draw extra overlays (finds rings, tour pulse) after the built-in ones. */
+  addDecorator(fn) {
+    this.decorators = [...this.decorators, fn];
+  }
+
+  /** Replace the frame images (e.g. colour frames, one per frame) or restore with null. */
+  useImages(images) {
+    this.frameImages = images;
+    this.render();
+  }
+
   /** Composed image (canvas) for the current frame under the current display settings. */
   composed() {
     const o = this.override;
+    if (!o && this.frameImages) return this.frameImages[this.index] || null;
     if (o?.kind === 'reference') return o.img;
     if (o?.kind === 'diff') return this.rgbaCanvas(o.rgba, this.P);
     const smooth = this.display.smooth && !this.playing; // Catmull-Rom only on still frames
@@ -417,6 +431,7 @@ export class Player {
     const flags = this.frame?.flags_png && this.flagImages.get(this.frame.flags_png);
     if (this.overlays.flags && !this.override && flags) ctx.drawImage(flags, tl.x, tl.y, span, span);
     if (this.overlays.stars) this.drawStars();
+    this.decorators.forEach((draw) => draw(ctx, this));
     if (this.selected) this.drawSelection();
     this.drawCrosshair();
   }

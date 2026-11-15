@@ -306,3 +306,50 @@ body.embed .embed-only { display: inline-flex; min-height: 36px; padding: 0.3rem
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
+
+/* ---------- beginner features: sights, sky picker, finds, object card, tour ---------- */
+.chips { list-style: none; padding: 0; margin: 0.5rem 0 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.chip {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; text-align: left;
+  min-height: 44px; max-width: 260px; padding: 0.55rem 0.8rem; cursor: pointer;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.chip span { color: var(--text-dim); font-size: 0.8rem; }
+.chip:hover, .chip:focus-visible { border-color: var(--accent); }
+.sky-picker { padding: 0.75rem; margin: 0 0 1rem; }
+.sky-picker-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.sky-picker-head h3 { margin: 0; }
+.sky-map { width: 100%; height: min(60vh, 460px); border-radius: var(--radius); overflow: hidden; background: #000; }
+.finds-title { margin: 1rem 0 0.25rem; font-size: 1rem; }
+.finds { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
+.find { display: flex; align-items: stretch; gap: 0.4rem; }
+.find-main {
+  flex: 1; display: flex; gap: 0.6rem; align-items: flex-start; text-align: left; cursor: pointer;
+  padding: 0.5rem 0.6rem; min-height: 44px; color: var(--text);
+  background: var(--card-2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.find-main:hover, .find-main:focus-visible { border-color: var(--accent); }
+.find-text span { color: var(--text-dim); }
+.find-num {
+  flex: none; width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 700; color: var(--accent-ink); background: var(--accent);
+}
+.find-num.variable { background: var(--focus); }
+.btn.small { min-height: 36px; padding: 0.3rem 0.6rem; font-size: 0.85rem; }
+.object-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; background: var(--bg-2); }
+.object-card h3 { margin: 0 0 0.35rem; font-size: 0.95rem; color: var(--accent); }
+.object-card p { margin: 0.3rem 0; }
+.card-title { font-size: 1.05rem; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.sound-text:empty { display: none; }
+.tour {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50; width: min(380px, calc(100vw - 32px));
+  padding: 1rem; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); border-color: var(--accent);
+}
+.tour-step { margin: 0; color: var(--accent); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.tour-text { margin: 0.4rem 0 0.8rem; font-size: 1rem; line-height: 1.45; }
+.tour-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+@media (max-width: 560px) {
+  .chip { max-width: 100%; width: 100%; }
+  .tour { left: 16px; right: 16px; width: auto; }
+}
