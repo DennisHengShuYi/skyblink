@@ -10,7 +10,10 @@ const MIN_PM_ARCSEC = 0.02;
 const THIS_YEAR = 2026;
 const LOOKBACK_MAX_LY = 500;
 
-export const NOT_IN_GAIA = "Not in SkyBlink's Gaia star list for this field — it may be very cold, very faint, or hidden behind dust. Brown dwarfs look like this.";
+export const NOT_IN_GAIA = "Not in SkyBlink's Gaia star list for this field. With one view we can't tell what it is: it could be very cold, very faint or hidden behind dust.";
+// Only for a spot that measurably moved: slow-moving, very red objects not seen by Gaia are often brown dwarfs.
+export const NOT_IN_GAIA_MOVER = `${NOT_IN_GAIA} Brown dwarfs look like this.`;
+const STILL_GAIA = 'Gaia lists a star here that is not moving, so this may be a different object right beside it, or glare. A candidate worth a closer look.';
 const EMPTY_SNR = 5;
 
 /**
@@ -18,7 +21,9 @@ const EMPTY_SNR = 5;
  * pixel (no data yet, or a Difference/Reference view), empty sky, or an uncatalogued source.
  */
 export function objectHeadline({ mover, snr }) {
-  if (mover) return { title: `Moving object — about ${Number(mover.arcsecPerYr).toFixed(1)}″ a year`, body: NOT_IN_GAIA };
+  if (mover) {
+    return { title: `Moving object — about ${Number(mover.arcsecPerYr).toFixed(1)}″ a year`, body: mover.stillGaia ? STILL_GAIA : NOT_IN_GAIA_MOVER };
+  }
   if (snr === null || !Number.isFinite(snr)) {
     return { title: "Can't measure here in this view", body: 'Switch back to the animation and click again to read this spot.' };
   }

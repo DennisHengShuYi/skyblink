@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { starType, distanceText, speedText, spectrumWords, NOT_IN_GAIA } from '../../frontend/js/describe.js';
+import { starType, distanceText, speedText, spectrumWords, NOT_IN_GAIA, NOT_IN_GAIA_MOVER } from '../../frontend/js/describe.js';
 
 const noNaN = (o) => assert.ok(!JSON.stringify(o).includes('NaN'), `NaN in ${JSON.stringify(o)}`);
 
@@ -82,8 +82,9 @@ test('spectrum words: too few points on one side → null; NaN ignored', () => {
   assert.match(spectrumWords(withNaN), /cool/);
 });
 
-test('not-in-Gaia text mentions brown dwarfs', () => {
-  assert.match(NOT_IN_GAIA, /Brown dwarfs/);
+test('brown dwarfs are mentioned only for a confirmed mover, never for a plain unlisted dot', () => {
+  assert.match(NOT_IN_GAIA_MOVER, /Brown dwarfs/);
+  assert.doesNotMatch(NOT_IN_GAIA, /Brown dwarfs/);
 });
 
 // Added in the final-review fix pass.
@@ -93,6 +94,19 @@ test('headline: an untracked mover is described as a moving object', () => {
   const h = objectHeadline({ mover: { arcsecPerYr: 8.04 }, snr: 15 });
   assert.match(h.title, /Moving object — about 8\.0″ a year/);
   assert.match(h.body, /Brown dwarfs/);
+});
+
+test('headline: a mover on a still Gaia star makes no brown-dwarf claim', () => {
+  const h = objectHeadline({ mover: { arcsecPerYr: 8.04, stillGaia: true }, snr: 15 });
+  assert.match(h.title, /Moving object — about 8\.0″ a year/);
+  assert.match(h.body, /Gaia lists a star here that is not moving/);
+  assert.doesNotMatch(h.body, /Brown dwarf/);
+});
+
+test('headline: a plain unlisted dot says nothing about brown dwarfs', () => {
+  const h = objectHeadline({ mover: null, snr: 40 });
+  assert.doesNotMatch(h.body, /Brown dwarf/);
+  assert.match(h.body, /can't tell what it is/);
 });
 
 test('headline: unmeasurable pixel (no data / override) is neutral, not "brown dwarf"', () => {
