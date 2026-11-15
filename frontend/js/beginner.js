@@ -210,8 +210,10 @@ export function mountBeginner(ctx) {
       }
       colourFrames = result.frames;
       player.useImages(colourFrames);
-      $('colour-msg').textContent = 'Hot stars look blue-white; cold brown dwarfs and dusty objects glow red.';
-      if (!player.playing && player.frames.length > 1) player.play();
+      $('colour-msg').textContent = ['Hot stars look blue-white; cold brown dwarfs and dusty objects glow red.', result.notes]
+        .filter(Boolean).join(' ');
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!reduced && !player.playing && player.frames.length > 1) player.play();
       return `Colour: ${COLOUR_DETS.b} blue · ${COLOUR_DETS.g} green · ${COLOUR_DETS.r} red`;
     } catch (err) {
       $('colour-msg').textContent = err.message || "The colour picture couldn't be made.";
